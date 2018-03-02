@@ -1,0 +1,20 @@
+{
+  "XHMM.bam_files_list": "/Users/asmirnov/Desktop/evaluations/gCNV_theano/xhmm/wdl/test_files/bam_list.tsv",
+  "XHMM.ref_fasta": "/Users/asmirnov/Desktop/evaluations/gCNV_theano/xhmm/wdl/test_files/human_g1k_v37.20.21.fasta",
+  "XHMM.xhmm_docker": "asmirnov239/xhmm:latest",
+  "XHMM.ref_fasta_dict": "/Users/asmirnov/Desktop/evaluations/gCNV_theano/xhmm/wdl/test_files/human_g1k_v37.20.21.dict",
+  "XHMM.ref_fasta_fai": "/Users/asmirnov/Desktop/evaluations/gCNV_theano/xhmm/wdl/test_files/human_g1k_v37.20.21.fasta.fai",
+  "XHMM.interval_list": "/Users/asmirnov/Desktop/evaluations/gCNV_theano/xhmm/wdl/test_files/exome-read-counts-intervals.list",
+  "XHMM.cohort_id": "test_data",
+  "XHMM.discover_parameters_file": "/Users/asmirnov/Desktop/evaluations/gCNV_theano/xhmm/wdl/test_files/params.txt",
+  "XHMM.seq_db": "/Users/asmirnov/Desktop/evaluations/gCNV_theano/xhmm/wdl/test_files/seqdb.hg19",
+  "XHMM.interval_complexity_filter_threshold": 0.25,
+  "XHMM.gc_low_high_filter_params": [0.1, 0.9],
+  "XHMM.min_target_size_filter": 10,
+  "XHMM.max_target_size_filter": 10000,
+  "XHMM.min_mean_target_rd": 0,
+  "XHMM.max_mean_target_rd": 10000,
+  "XHMM.min_mean_sample_rd": 0,
+  "XHMM.max_mean_sample_rd": 10000,
+  "XHMM.max_sd_sample_rd": 10000
+}
