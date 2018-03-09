@@ -28,10 +28,6 @@ workflow XHMM {
     String xhmm_executable = "/root/statgen-xhmm-cc14e528d909/xhmm"
     String plinkseq = "/root/plinkseq-0.10/pseq"
 
-    File seq_db_final = select_first([seq_db, "null"])
-    Array[Float] gc_low_high_filter_params_final = select_first([gc_low_high_filter_params, []])
-    Float interval_complexity_filter_threshold_final = select_first([interval_complexity_filter_threshold, 0.25])
-
     scatter (bam_location in bam_files) {
         call CollectCoverage {
             input:
@@ -54,26 +50,28 @@ workflow XHMM {
             cohort_id = cohort_id
     }
 
-    if (length(gc_low_high_filter_params_final) == 2) {
-        call GetExtremeGCContentTargets {
-            input:
-                interval_list = interval_list,
-                ref_fasta = ref_fasta,
-                ref_fasta_fai = ref_fasta_fai,
-                ref_fasta_dict = ref_fasta_dict,
-                gc_low_high_filter_params_final = gc_low_high_filter_params_final,
-                cohort_id = cohort_id,
-                xhmm_docker = xhmm_docker,
-                gatk_local_jar = gatk_local_jar
+    if (defined(gc_low_high_filter_params)) {
+        if (length(select_first([gc_low_high_filter_params])) == 2) {
+            call GetExtremeGCContentTargets {
+                input:
+                    interval_list = interval_list,
+                    ref_fasta = ref_fasta,
+                    ref_fasta_fai = ref_fasta_fai,
+                    ref_fasta_dict = ref_fasta_dict,
+                    gc_low_high_filter_params_final = select_first([gc_low_high_filter_params]),
+                    cohort_id = cohort_id,
+                    xhmm_docker = xhmm_docker,
+                    gatk_local_jar = gatk_local_jar
+            }
         }
     }
 
-    if (defined(seq_db_final)) {
+    if (defined(seq_db)) {
         call GetLowComplexityTargets {
             input:
-                seq_db = seq_db_final,
+                seq_db = select_first([seq_db]),
                 interval_list = interval_list,
-                interval_complexity_filter_threshold = interval_complexity_filter_threshold_final,
+                interval_complexity_filter_threshold = select_first([interval_complexity_filter_threshold, 0.25]),
                 cohort_id = cohort_id,
                 xhmm_docker = xhmm_docker
         }
@@ -198,7 +196,7 @@ task CollectCoverage {
     Int command_mem_mb = machine_mem_mb - 500
 
     String gatk_local_jar
-    String base_filename = basename(bam, ".bam")  
+    String base_filename = basename(bam, ".bam")
  
     command <<<
         set -e
