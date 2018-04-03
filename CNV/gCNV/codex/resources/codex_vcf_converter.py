@@ -45,7 +45,7 @@ def _convert_call_fields_to_variant(
     variant_standard_fields = OrderedDict(zip(
         variant_standard_field_keys,
         [contig, start, variant_id, 'N', '<DEL>,<DUP>', '.', '.', info_field,
-         'GT:GQ:PL']))
+         'GT:LRATIO']))
 
     # construct list of per-sample genotype fields
     # (we do not use a dict here to allow for duplicate sample names)
@@ -98,22 +98,18 @@ def _construct_genotype_field(
         call_fields: Dict[str, str]) -> str:
     # parse call fields
     cnv = call_fields['cnv']
-    lratio = int(float(call_fields['lratio']))
+    lratio = float(call_fields['lratio'])
 
     # construct genotype field
     if cnv == 'del':
         gt = '1'
-        pl = str(lratio) + ',0,10000'
     elif cnv == 'dup':
         gt = '2'
-        pl = str(lratio) + ',10000,0'
     else:
         raise Exception('CODEX \"cnv\" field must be \"del\" or \"dup\".')
-    gq = min(99, lratio)
     genotype_field = \
         gt + ':' \
-           + str(gq) + ':' \
-           + pl
+           + '{0:.2f}'.format(lratio)
 
     return genotype_field
 
