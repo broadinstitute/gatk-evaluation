@@ -706,7 +706,7 @@ class CNVTrialCallSetEvaluator:
                 truth_overlapping_variants_and_overlap_fractions = get_overlapping_variants_set(
                     self.relevant_truth_call_set.genome_interval_tree,
                     trial_variant,
-                    'other',
+                    'self',
                     self.min_overlap_fraction_for_variant_matching)
 
                 if len(truth_overlapping_variants_and_overlap_fractions) == 0:  # not in truth
