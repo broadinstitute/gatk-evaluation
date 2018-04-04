@@ -447,7 +447,7 @@ class TruthAndTrialVariants:
     def __repr__(self):
         return "[truth: {0}\ntrial: {1}\noverlap fraction: {2:f}\n" \
                "number of overlaps: {3}\nreference: {4}]".format(self.truth_variant, self.trial_variant,
-                                                                   self.overlap_fraction, self.num_overlaps, self.ref)
+                                                                 self.overlap_fraction, self.num_overlaps, self.ref)
 
 
 class CNVCallSetAnalysisSummary:
@@ -536,7 +536,7 @@ class CNVCallSetAnalysisSummary:
                             filtered_summary.false_dup_calls.add(joint_vars.trial_variant)
                         else:
                             raise Exception("Should not reach here!")
-                    else: # dismiss
+                    else:  # dismiss
                         filtered_summary.truth_excluded_calls.add(joint_vars.truth_variant)
                         filtered_summary.trial_excluded_calls.add(joint_vars.trial_variant)
 
@@ -564,7 +564,26 @@ class CNVCallSetAnalysisSummary:
                 else:  # otherwise, exclude this trial variant
                     filtered_summary.trial_excluded_calls.add(var)
 
+        # excluded
+        for variant in self.truth_excluded_calls:
+            filtered_summary.truth_excluded_calls.add(variant)
+
+        for variant in self.trial_excluded_calls:
+            filtered_summary.trial_excluded_calls.add(variant)
+
         return filtered_summary
+
+    @property
+    def all_matches(self):
+        return self.exact_matches.union(self.qualitative_del_matches).union(self.qualitative_dup_matches)
+
+    @property
+    def all_misses(self):
+        return self.missed_del_calls.union(self.missed_dup_calls)
+
+    @property
+    def all_falsities(self):
+        return self.false_del_calls.union(self.false_dup_calls)
 
     @property
     def true_positive_count(self):
@@ -636,22 +655,16 @@ class CNVTrialCallSetEvaluator:
     def __init__(self,
                  truth_call_set: GenericCNVCallSet,
                  trial_call_set: GenericCNVCallSet,
-                 truth_included_loci: GenomeIntervalTree,
                  trial_included_loci: GenomeIntervalTree,
+                 min_overlap_fraction_for_truth_filtration: float,
                  min_overlap_fraction_for_variant_matching: float,
-                 truth_overlapping_set_selection_strategy: str = "largest_overlap",
-                 truth_loci_overlapping_trial_variant_ref: str = 'larger',
-                 trial_loci_overlapping_trial_variant_ref: str = 'larger',
-                 truth_loci_overlapping_truth_variant_ref: str = 'other',
-                 trial_loci_overlapping_truth_variant_ref: str = 'other',
-                 truth_variants_overlapping_trial_variant_ref: str = 'other'):
+                 truth_overlapping_set_selection_strategy: str = "largest_overlap"):
         """Evaluates a trial CNV call set against a truth call set in genomic regions analyzed by both
         the truth and the trial callers.
 
         Args:
             truth_call_set: truth call set
             trial_call_set: trial call set
-            truth_included_loci: genomic loci included by the truth caller
             trial_included_loci: genomic loci included by the trial caller
             min_overlap_fraction_for_variant_matching: consider two variants overlapping only if
                 their overlap fraction is higher than this value. If not provided, any overlap
@@ -665,17 +678,17 @@ class CNVTrialCallSetEvaluator:
         self.sample_name = truth_call_set.sample_name
         self.truth_call_set = truth_call_set
         self.trial_call_set = trial_call_set
-        self.truth_included_loci = truth_included_loci
         self.trial_included_loci = trial_included_loci
         self.min_overlap_fraction_for_variant_matching = min_overlap_fraction_for_variant_matching
         self.truth_overlapping_set_selection_strategy = truth_overlapping_set_selection_strategy
-        self.truth_loci_overlapping_trial_variant_ref = truth_loci_overlapping_trial_variant_ref
-        self.trial_loci_overlapping_trial_variant_ref = trial_loci_overlapping_trial_variant_ref
-        self.truth_loci_overlapping_truth_variant_ref = truth_loci_overlapping_truth_variant_ref
-        self.trial_loci_overlapping_truth_variant_ref = trial_loci_overlapping_truth_variant_ref
-        self.truth_variants_overlapping_trial_variant_ref = truth_variants_overlapping_trial_variant_ref
-
         self.all_contigs = truth_call_set.contig_set.union(trial_call_set.contig_set)
+
+        # filter truth
+        self.relevant_truth_call_set = GenericCNVCallSet(truth_call_set.sample_name, truth_call_set.tags)
+        for contig in self.all_contigs:
+            for truth_variant in truth_call_set.iter_in_contig(contig):
+                if overlaps(trial_included_loci, truth_variant, 'self', min_overlap_fraction_for_truth_filtration):
+                    self.relevant_truth_call_set.add(truth_variant)
 
     def __call__(self) -> CNVCallSetAnalysisSummary:
         """Generates the analysis summary."""
@@ -684,32 +697,16 @@ class CNVTrialCallSetEvaluator:
             """Performs the evaluation for a given contig and updates the analysis summary."""
 
             # keeps track of truth variants that do not overlap with trial variants
-            remaining_truth_variants = self.truth_call_set.get_contig_interval_tree(_contig).copy()
+            remaining_truth_variants = self.relevant_truth_call_set.get_contig_interval_tree(_contig).copy()
 
             # first, iterate over trial variants
             for trial_variant in self.trial_call_set.iter_in_contig(_contig):
 
-                # if trial variant not in truth included intervals, neglect it
-                if not overlaps(self.truth_included_loci,
-                                trial_variant,
-                                self.truth_loci_overlapping_trial_variant_ref,
-                                self.min_overlap_fraction_for_variant_matching):
-                    _summary.trial_excluded_calls.add(trial_variant)
-                    continue
-
-                # if trial variant not in its own included intervals (for whatever reason), neglect it
-                if not overlaps(self.trial_included_loci,
-                                trial_variant,
-                                self.trial_loci_overlapping_trial_variant_ref,
-                                self.min_overlap_fraction_for_variant_matching):
-                    _summary.trial_excluded_calls.add(trial_variant)
-                    continue
-
                 # get a set of overlapping truth variants
                 truth_overlapping_variants_and_overlap_fractions = get_overlapping_variants_set(
-                    self.truth_call_set.genome_interval_tree,
+                    self.relevant_truth_call_set.genome_interval_tree,
                     trial_variant,
-                    self.truth_variants_overlapping_trial_variant_ref,
+                    'other',
                     self.min_overlap_fraction_for_variant_matching)
 
                 if len(truth_overlapping_variants_and_overlap_fractions) == 0:  # not in truth
@@ -720,16 +717,6 @@ class CNVTrialCallSetEvaluator:
                         _summary.false_del_calls.add(trial_variant)
 
                 else:
-
-                    # remove truth from the remaining truth variants
-                    for truth_variant, _ in truth_overlapping_variants_and_overlap_fractions:
-                        try:
-                            remaining_truth_variants.removei(
-                                truth_variant.start, truth_variant.end, data=truth_variant)
-                        except ValueError:
-                            # a variant could be already removed and it is fine
-                            # (note that we have queried truth_call_set)
-                            pass
 
                     # choose a truth variant from the overlapping set
                     num_overlaps = len(truth_overlapping_variants_and_overlap_fractions)
@@ -748,10 +735,27 @@ class CNVTrialCallSetEvaluator:
                     else:
                         raise Exception("Should not reach here!")
 
+                    # remove truth from the remaining truth variants
+                    # try:
+                    #     remaining_truth_variants.removei(
+                    #         best_truth_variant.start, best_truth_variant.end, data=best_truth_variant)
+                    # except ValueError:
+                    #     # a variant could be already removed and it is fine
+                    #     # (note that we have queried truth_call_set)
+                    #     pass
+                    for truth_variant, _ in truth_overlapping_variants_and_overlap_fractions:
+                        try:
+                            remaining_truth_variants.removei(
+                                truth_variant.start, truth_variant.end, data=truth_variant)
+                        except ValueError:
+                            # a variant could be already removed and it is fine
+                            # (note that we have queried truth_call_set)
+                            pass
+
                     joint_variant = TruthAndTrialVariants(best_truth_variant, trial_variant,
                                                           overlap_fraction,
                                                           num_overlaps,
-                                                          self.truth_variants_overlapping_trial_variant_ref)
+                                                          'self')
 
                     # exact match
                     if best_truth_variant.var_copy_number == trial_variant.var_copy_number:
@@ -774,22 +778,6 @@ class CNVTrialCallSetEvaluator:
             # next, iterate over remaining truth variants
             for truth_entry in remaining_truth_variants.iter():
                 truth_variant: GenericCopyNumberVariant = truth_entry.data
-
-                # if truth variant not in trial included intervals, neglect it
-                if not overlaps(self.trial_included_loci,
-                                truth_variant,
-                                self.trial_loci_overlapping_truth_variant_ref,
-                                self.min_overlap_fraction_for_variant_matching):
-                    _summary.truth_excluded_calls.add(truth_variant)
-                    continue
-
-                # if truth variant not in its own included intervals (for whatever reason), neglect it
-                if not overlaps(self.truth_included_loci,
-                                truth_variant,
-                                self.truth_loci_overlapping_truth_variant_ref,
-                                self.min_overlap_fraction_for_variant_matching):
-                    _summary.truth_excluded_calls.add(truth_variant)
-                    continue
 
                 if truth_variant.is_dup:
                     _summary.missed_dup_calls.add(truth_variant)

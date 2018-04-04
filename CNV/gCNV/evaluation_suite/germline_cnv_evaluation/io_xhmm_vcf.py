@@ -87,8 +87,9 @@ def load_xhmm_vcf_file(xhmm_vcf_file: str,
             end = int(split_line[2])
             included_intervals[contig].addi(start, end)
 
-    # step 3. determine variant classes
-    _logger.info("Calculating variant classes...")
+    # step 4. estimate variant frequency
+    _logger.info("Calculating variant classes and frequencies...")
+    num_samples = len(sample_names)
     for si in range(num_samples):
         for contig in contig_set:
             for variant in xhmm_call_set_list[si].iter_in_contig(contig):

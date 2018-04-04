@@ -1,6 +1,6 @@
 import vcf
 from typing import List, Optional, Dict, Tuple
-from .core import GenericCNVCallSet, GenericCopyNumberVariant
+from .core import GenericCNVCallSet, GenericCopyNumberVariant, get_overlapping_variants_set
 from intervaltree_bio import GenomeIntervalTree
 import logging
 
@@ -10,13 +10,15 @@ _logger = logging.getLogger(__name__)
 def load_codex_vcf_file(codex_vcf_file: str,
                         codex_interval_list_bed_file: str,
                         max_records: Optional[int] = None,
-                        log_frequency: int = 500) \
+                        log_frequency: int = 500,
+                        min_overlap_fraction_for_variant_matching: float = 0.5) \
         -> Tuple[Dict[str, GenericCNVCallSet], GenomeIntervalTree]:
 
     allele_to_genotype_map = {'.': 'ref', '<DEL>': 'del', '<DUP>': 'dup'}
 
     # step 1. load VCF file
     codex_call_set_list: List[GenericCNVCallSet] = list()
+    contig_set = set()
     with open(codex_vcf_file, 'r') as f:
         vcf_reader = vcf.Reader(f)
         sample_names = list(vcf_reader.samples)
@@ -37,6 +39,8 @@ def load_codex_vcf_file(codex_vcf_file: str,
             contig = record.CHROM
             start = record.start + 1
             end = info['END']
+
+            contig_set.add(contig)
 
             for si in range(num_samples):
 
@@ -85,34 +89,7 @@ def load_codex_vcf_file(codex_vcf_file: str,
             end = int(split_line[2])
             included_intervals[contig].addi(start, end)
 
-    # step 3. determine variant classes
-    _logger.info("Calculating variant classes...")
-    contig_set = codex_call_set_list[0].contig_set
-    for contig in contig_set:
-        generators = [codex_call_set.iter_in_contig(contig) for codex_call_set in codex_call_set_list]
-        while True:
-            try:
-                variants = [generator.__next__() for generator in generators]
-                assert len(set(variants)) == 1  # assert that the variants indeed come from the same interval
-                all_ref = all([not variant.is_var for variant in variants])
-                all_dup = all([variant.is_dup for variant in variants])
-                all_del = all([variant.is_del for variant in variants])
-                if all_ref:
-                    for variant in variants:
-                        variant.variant_class = 'ref'
-                elif all_dup:
-                    for variant in variants:
-                        variant.variant_class = 'dup'
-                elif all_del:
-                    for variant in variants:
-                        variant.variant_class = 'del'
-                else:
-                    for variant in variants:
-                        variant.variant_class = 'mixed'
-            except StopIteration:
-                break
-
-    # step 4. non-variant "variants" are not needed anymore -- remove them from the interval tree
+    # step 3. non-variant "variants" are not needed anymore -- remove them from the interval tree
     _logger.info("Removing non-variant calls...")
     var_only_call_set_list: List[GenericCNVCallSet] = list()
     for sample_call_set in codex_call_set_list:
@@ -123,6 +100,32 @@ def load_codex_vcf_file(codex_vcf_file: str,
                     var_only_call_set.add(variant)
         var_only_call_set.tags.add("Removed non-variant calls")
         var_only_call_set_list.append(var_only_call_set)
+
+    # step 4. estimate variant frequency
+    _logger.info("Calculating variant classes and frequencies...")
+    num_samples = len(sample_names)
+    for si in range(num_samples):
+        for contig in contig_set:
+            for variant in var_only_call_set_list[si].iter_in_contig(contig):
+                all_variants = list()
+                all_variants.append(variant)
+                total_count = 1
+                for osi in range(num_samples):
+                    if osi == si:
+                        continue
+                    other_variants = get_overlapping_variants_set(
+                        var_only_call_set_list[osi].genome_interval_tree,
+                        variant, 'other', min_overlap_fraction_for_variant_matching)
+                    total_count += len(other_variants) > 0
+                    for other_variant, _ in other_variants:
+                        all_variants.append(other_variant)
+                variant.variant_frequency = float(total_count) / num_samples
+                if all([_variant.is_dup for _variant in all_variants]) and len(all_variants) == num_samples:
+                    variant.variant_class = 'dup'
+                elif all([_variant.is_del for _variant in all_variants]) and len(all_variants) == num_samples:
+                    variant.variant_class = 'del'
+                else:
+                    variant.variant_class = 'mixed'
 
     return {var_only_call_set_list[si].sample_name: var_only_call_set_list[si]
             for si in range(len(var_only_call_set_list))}, included_intervals
