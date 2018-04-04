@@ -735,22 +735,14 @@ class CNVTrialCallSetEvaluator:
                     else:
                         raise Exception("Should not reach here!")
 
-                    # remove truth from the remaining truth variants
-                    # try:
-                    #     remaining_truth_variants.removei(
-                    #         best_truth_variant.start, best_truth_variant.end, data=best_truth_variant)
-                    # except ValueError:
-                    #     # a variant could be already removed and it is fine
-                    #     # (note that we have queried truth_call_set)
-                    #     pass
-                    for truth_variant, _ in truth_overlapping_variants_and_overlap_fractions:
-                        try:
-                            remaining_truth_variants.removei(
-                                truth_variant.start, truth_variant.end, data=truth_variant)
-                        except ValueError:
-                            # a variant could be already removed and it is fine
-                            # (note that we have queried truth_call_set)
-                            pass
+                    # remove matched truth variants from the remaining truth variants
+                    try:
+                        remaining_truth_variants.removei(
+                            best_truth_variant.start, best_truth_variant.end, data=best_truth_variant)
+                    except ValueError:
+                        # a variant could be already removed and it is fine
+                        # (note that we have queried truth_call_set)
+                        pass
 
                     joint_variant = TruthAndTrialVariants(best_truth_variant, trial_variant,
                                                           overlap_fraction,
