@@ -64,7 +64,7 @@ def load_codex_vcf_file(codex_vcf_file: str,
                 else:
                     var_copy_number = 2
 
-                original_quality = record.samples[si]['GQ']
+                original_quality = record.samples[si]['LRATIO']
                 if original_quality is None:
                     quality = 0
                 else:

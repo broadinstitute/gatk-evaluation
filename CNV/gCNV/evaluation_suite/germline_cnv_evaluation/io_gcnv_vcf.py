@@ -31,8 +31,6 @@ def load_gcnv_segments_vcf_file(gcnv_segments_vcf_files: List[str],
         dict of call sets, included loci
     """
 
-    _logger.warning("Assuming QS is normalized -- if you are using a later GATK, fix the evaluation code!")
-
     allele_to_genotype_map = {'N': 'ref', '<DEL>': 'del', '<DUP>': 'dup'}
     assert quality_mode in ["some", "all"]
 
@@ -67,7 +65,7 @@ def load_gcnv_segments_vcf_file(gcnv_segments_vcf_files: List[str],
                 genotype = allele_to_genotype_map[allele]
 
                 if quality_mode == "some":
-                    quality = num_intervals * record.samples[0]["QS"]
+                    quality = record.samples[0]["QS"]
                 elif quality_mode == "all":
                     quality = record.samples[0]["QA"]
                 else:

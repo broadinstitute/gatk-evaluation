@@ -792,7 +792,25 @@ ClippedTrialVariant = namedtuple('ClippedTrialVariant',
 OverlappingTruthTrial = namedtuple('OverlappingTruthTrial',
                                    'truth_variant, trial_variant, trial_interval, truth_overlap_fraction')
 
-Concordance = namedtuple('Concordance', 'TP, FP, FN')
+
+class Concordance:
+    def __init__(self, TP, FP, FN, TN):
+        self.TP = TP
+        self.FP = FP
+        self.FN = FN
+        self.TN = TN
+
+    @property
+    def TPR(self):
+        return self.TP / (self.TP + self.FN)
+
+    @property
+    def PPV(self):
+        return self.TP / (self.TP + self.FP)
+
+    @property
+    def FPR(self):
+        return self.FP / (self.FP + self.TN)
 
 
 class CNVCallSetPerTargetAnalysisSummary:
@@ -800,21 +818,23 @@ class CNVCallSetPerTargetAnalysisSummary:
         self.overlapping_variants: List[OverlappingTruthTrial] = list()
         self.missed_variants: List[ClippedTruthVariant] = list()
         self.false_variants: List[ClippedTrialVariant] = list()
+        self.mutual_ref_intervals = list()
 
     @property
     def base_level_concordance(self):
         true_bases = 0
         false_bases = 0
         missed_bases = 0
+        true_ref_bases = 0
 
         for overlapping_variant in self.overlapping_variants:
             trial_interval = overlapping_variant.trial_interval
-            trial_interval_bases = trial_interval.end - trial_interval.begin
             trial_variant = overlapping_variant.trial_variant
             truth_variant = overlapping_variant.truth_variant
+            trial_interval_bases = trial_interval.end - trial_interval.begin
             if (trial_variant.is_dup and truth_variant.is_dup) or (trial_variant.is_del and truth_variant.is_del):
                 true_bases += int(trial_interval_bases * overlapping_variant.truth_overlap_fraction)
-                false_bases += (trial_interval_bases - true_bases)
+                false_bases += int(trial_interval_bases * (1.0 - overlapping_variant.truth_overlap_fraction))
             else:  # discordant match
                 false_bases += trial_interval_bases
 
@@ -822,19 +842,24 @@ class CNVCallSetPerTargetAnalysisSummary:
             trial_interval = missed_variant.trial_interval
             trial_interval_bases = trial_interval.end - trial_interval.begin
             missed_bases += int(trial_interval_bases * missed_variant.truth_overlap_fraction)
+            true_ref_bases += int(trial_interval_bases * (1. - missed_variant.truth_overlap_fraction))
 
         for false_variant in self.false_variants:
             trial_interval = false_variant.trial_interval
             trial_interval_bases = trial_interval.end - trial_interval.begin
             false_bases += trial_interval_bases
 
-        return Concordance(TP=true_bases, FP=false_bases, FN=missed_bases)
+        for mutual_ref_interval in self.mutual_ref_intervals:
+            true_ref_bases += mutual_ref_interval.end - mutual_ref_interval.begin
+
+        return Concordance(TP=true_bases, FP=false_bases, FN=missed_bases, TN=true_ref_bases)
 
     @property
     def target_level_concordance(self):
         true_intervals = 0
         false_intervals = 0
         missed_intervals = 0
+        true_ref_intervals = 0
 
         for overlapping_variant in self.overlapping_variants:
             trial_variant = overlapping_variant.trial_variant
@@ -847,10 +872,12 @@ class CNVCallSetPerTargetAnalysisSummary:
 
         for missed_variant in self.missed_variants:
             missed_intervals += missed_variant.truth_overlap_fraction
+            true_ref_intervals += (1. - missed_variant.truth_overlap_fraction)
 
         false_intervals += len(self.false_variants)
+        true_ref_intervals += len(self.mutual_ref_intervals)
 
-        return Concordance(TP=true_intervals, FP=false_intervals, FN=missed_intervals)
+        return Concordance(TP=true_intervals, FP=false_intervals, FN=missed_intervals, TN=true_ref_intervals)
 
     def get_filtered_summary(self,
                              truth_filter: Callable[[GenericCopyNumberVariant], bool],
@@ -866,10 +893,15 @@ class CNVCallSetPerTargetAnalysisSummary:
                 if trial_pass:  # count as a match
                     filtered_summary.overlapping_variants.append(overlapping_truth_trial)
                 else:  # count as a missed variant
-                    filtered_summary.missed_variants.append(overlapping_truth_trial.truth_variant)
+                    filtered_summary.missed_variants.append(
+                        ClippedTruthVariant(truth_variant=overlapping_truth_trial.truth_variant,
+                                            trial_interval=overlapping_truth_trial.trial_interval,
+                                            truth_overlap_fraction=overlapping_truth_trial.truth_overlap_fraction))
             else:
                 if trial_pass:  # count as false positive
-                    filtered_summary.false_variants.append(overlapping_truth_trial.trial_variant)
+                    filtered_summary.false_variants.append(
+                        ClippedTrialVariant(trial_variant=overlapping_truth_trial.trial_variant,
+                                            trial_interval=overlapping_truth_trial.trial_interval))
                 else:  # dismiss
                     pass
 
@@ -888,6 +920,8 @@ class CNVCallSetPerTargetAnalysisSummary:
                 filtered_summary.false_variants.append(false_variant)
             else:  # otherwise, exclude this trial variant
                 pass
+
+        filtered_summary.mutual_ref_intervals = self.mutual_ref_intervals
 
         return filtered_summary
 
@@ -947,10 +981,10 @@ class CNVTrialCallSetEvaluatorTargetResolved:
                 else:
                     contig_trial_calls_on_targets.append(None)
 
-            for clipped_truth_variant_on_target, clipped_trial_variant_on_target in zip(
-                    contig_truth_calls_on_targets, contig_trial_calls_on_targets):
+            for clipped_truth_variant_on_target, clipped_trial_variant_on_target, trial_interval in zip(
+                    contig_truth_calls_on_targets, contig_trial_calls_on_targets, trial_interval_list):
                 if clipped_truth_variant_on_target is None and clipped_trial_variant_on_target is None:
-                    continue
+                    summary.mutual_ref_intervals.append(trial_interval)
                 elif clipped_truth_variant_on_target is None and clipped_trial_variant_on_target is not None:
                     summary.false_variants.append(clipped_trial_variant_on_target)
                 elif clipped_truth_variant_on_target is not None and clipped_trial_variant_on_target is None:
