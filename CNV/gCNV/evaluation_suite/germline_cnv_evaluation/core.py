@@ -1,7 +1,7 @@
 import numpy as np
 import pickle
 from gcnvkernel import Interval
-from typing import Optional, Set, Generator, Dict, Tuple, Callable, Union
+from typing import Optional, Set, Generator, Dict, Tuple, Callable, Union, List
 from intervaltree_bio import GenomeIntervalTree, IntervalTree
 from collections import namedtuple
 import logging
@@ -780,4 +780,187 @@ class CNVTrialCallSetEvaluator:
 
         for contig in self.all_contigs:
             perform_analysis_for_contig(contig, summary)
+        return summary
+
+
+ClippedTruthVariant = namedtuple('ClippedTruthVariant',
+                                 'truth_variant, trial_interval, truth_overlap_fraction')
+
+ClippedTrialVariant = namedtuple('ClippedTrialVariant',
+                                 'trial_variant, trial_interval')
+
+OverlappingTruthTrial = namedtuple('OverlappingTruthTrial',
+                                   'truth_variant, trial_variant, trial_interval, truth_overlap_fraction')
+
+Concordance = namedtuple('Concordance', 'TP, FP, FN')
+
+
+class CNVCallSetPerTargetAnalysisSummary:
+    def __init__(self):
+        self.overlapping_variants: List[OverlappingTruthTrial] = list()
+        self.missed_variants: List[ClippedTruthVariant] = list()
+        self.false_variants: List[ClippedTrialVariant] = list()
+
+    @property
+    def base_level_concordance(self):
+        true_bases = 0
+        false_bases = 0
+        missed_bases = 0
+
+        for overlapping_variant in self.overlapping_variants:
+            trial_interval = overlapping_variant.trial_interval
+            trial_interval_bases = trial_interval.end - trial_interval.begin
+            trial_variant = overlapping_variant.trial_variant
+            truth_variant = overlapping_variant.truth_variant
+            if (trial_variant.is_dup and truth_variant.is_dup) or (trial_variant.is_del and truth_variant.is_del):
+                true_bases += int(trial_interval_bases * overlapping_variant.truth_overlap_fraction)
+                false_bases += (trial_interval_bases - true_bases)
+            else:  # discordant match
+                false_bases += trial_interval_bases
+
+        for missed_variant in self.missed_variants:
+            trial_interval = missed_variant.trial_interval
+            trial_interval_bases = trial_interval.end - trial_interval.begin
+            missed_bases += int(trial_interval_bases * missed_variant.truth_overlap_fraction)
+
+        for false_variant in self.false_variants:
+            trial_interval = false_variant.trial_interval
+            trial_interval_bases = trial_interval.end - trial_interval.begin
+            false_bases += trial_interval_bases
+
+        return Concordance(TP=true_bases, FP=false_bases, FN=missed_bases)
+
+    @property
+    def target_level_concordance(self):
+        true_intervals = 0
+        false_intervals = 0
+        missed_intervals = 0
+
+        for overlapping_variant in self.overlapping_variants:
+            trial_variant = overlapping_variant.trial_variant
+            truth_variant = overlapping_variant.truth_variant
+            if (trial_variant.is_dup and truth_variant.is_dup) or (trial_variant.is_del and truth_variant.is_del):
+                true_intervals += overlapping_variant.truth_overlap_fraction
+                false_intervals += (1.0 - overlapping_variant.truth_overlap_fraction)
+            else:  # discordant match
+                false_intervals += 1.0
+
+        for missed_variant in self.missed_variants:
+            missed_intervals += missed_variant.truth_overlap_fraction
+
+        false_intervals += len(self.false_variants)
+
+        return Concordance(TP=true_intervals, FP=false_intervals, FN=missed_intervals)
+
+    def get_filtered_summary(self,
+                             truth_filter: Callable[[GenericCopyNumberVariant], bool],
+                             trial_filter: Callable[[GenericCopyNumberVariant], bool]):
+        filtered_summary = CNVCallSetPerTargetAnalysisSummary()
+
+        # variants that overlap between truth and trial
+        for overlapping_truth_trial in self.overlapping_variants:
+            truth_pass = truth_filter(overlapping_truth_trial.truth_variant)
+            trial_pass = trial_filter(overlapping_truth_trial.trial_variant)
+
+            if truth_pass:
+                if trial_pass:  # count as a match
+                    filtered_summary.overlapping_variants.append(overlapping_truth_trial)
+                else:  # count as a missed variant
+                    filtered_summary.missed_variants.append(overlapping_truth_trial.truth_variant)
+            else:
+                if trial_pass:  # count as false positive
+                    filtered_summary.false_variants.append(overlapping_truth_trial.trial_variant)
+                else:  # dismiss
+                    pass
+
+        # missed truth variants
+        for missed_variant in self.missed_variants:
+            truth_pass = truth_filter(missed_variant.truth_variant)
+            if truth_pass:  # if truth passes, it is still a false negative
+                filtered_summary.missed_variants.append(missed_variant)
+            else:  # otherwise, exclude this truth variant
+                pass
+
+        # false trial variants
+        for false_variant in self.false_variants:
+            trial_pass = trial_filter(false_variant.trial_variant)
+            if trial_pass:  # if trial passes, it is still a false positive
+                filtered_summary.false_variants.append(false_variant)
+            else:  # otherwise, exclude this trial variant
+                pass
+
+        return filtered_summary
+
+
+class CNVTrialCallSetEvaluatorTargetResolved:
+    def __init__(self,
+                 truth_call_set: GenericCNVCallSet,
+                 trial_call_set: GenericCNVCallSet,
+                 trial_interval_tree: GenomeIntervalTree):
+
+        self.truth_call_set = truth_call_set
+        self.trial_call_set = trial_call_set
+        self.trial_interval_tree = trial_interval_tree
+
+    def __call__(self):
+
+        summary = CNVCallSetPerTargetAnalysisSummary()
+        all_contigs = self.truth_call_set.contig_set.intersection(self.trial_call_set.contig_set)
+
+        for contig in all_contigs:
+            trial_interval_list = sorted(list(self.trial_interval_tree[contig]))
+            contig_truth_calls = self.truth_call_set.get_contig_interval_tree(contig)
+            contig_trial_calls = self.trial_call_set.get_contig_interval_tree(contig)
+
+            # clip truth segments by trial intervals
+            contig_truth_calls_on_targets = []
+            for trial_interval in trial_interval_list:
+                truth_query = contig_truth_calls.search(trial_interval.begin, trial_interval.end)
+                if len(truth_query) == 0:
+                    contig_truth_calls_on_targets.append(None)
+                    continue
+                truth_variant = truth_query.__iter__().__next__().data
+                overlap_fraction = GenericCopyNumberVariant.get_overlap_fraction(
+                    Interval(contig, trial_interval.begin, trial_interval.end), truth_variant, 'self')
+                contig_truth_calls_on_targets.append(ClippedTruthVariant(
+                    truth_variant=truth_variant,
+                    truth_overlap_fraction=overlap_fraction,
+                    trial_interval=trial_interval))
+
+            # clip trial segments by trial intervals
+            contig_trial_calls_on_targets_map = dict()
+            for trial_variant in contig_trial_calls:
+                trial_interval_query = self.trial_interval_tree[contig].search(
+                    trial_variant.data.start, trial_variant.data.end)
+                if len(trial_interval_query) == 0:
+                    continue
+                for trial_interval in trial_interval_query:
+                    contig_trial_calls_on_targets_map[trial_interval] = trial_variant.data
+
+            contig_trial_calls_on_targets = []
+            for trial_interval in trial_interval_list:
+                if trial_interval in contig_trial_calls_on_targets_map.keys():
+                    contig_trial_calls_on_targets.append(
+                        ClippedTrialVariant(
+                            trial_variant=contig_trial_calls_on_targets_map[trial_interval],
+                            trial_interval=trial_interval))
+                else:
+                    contig_trial_calls_on_targets.append(None)
+
+            for clipped_truth_variant_on_target, clipped_trial_variant_on_target in zip(
+                    contig_truth_calls_on_targets, contig_trial_calls_on_targets):
+                if clipped_truth_variant_on_target is None and clipped_trial_variant_on_target is None:
+                    continue
+                elif clipped_truth_variant_on_target is None and clipped_trial_variant_on_target is not None:
+                    summary.false_variants.append(clipped_trial_variant_on_target)
+                elif clipped_truth_variant_on_target is not None and clipped_trial_variant_on_target is None:
+                    summary.missed_variants.append(clipped_truth_variant_on_target)
+                else:
+                    overlapping_truth_trial = OverlappingTruthTrial(
+                        truth_variant=clipped_truth_variant_on_target.truth_variant,
+                        trial_variant=clipped_trial_variant_on_target.trial_variant,
+                        truth_overlap_fraction=clipped_truth_variant_on_target.truth_overlap_fraction,
+                        trial_interval=clipped_trial_variant_on_target.trial_interval)
+                    summary.overlapping_variants.append(overlapping_truth_trial)
+
         return summary
