@@ -39,9 +39,9 @@ class GenericCopyNumberVariant(Interval):
         """
         super().__init__(contig, start, end)
 
-        assert var_copy_number >= 0
+#        assert var_copy_number >= 0
         assert quality >= 0.
-        assert genotype is None or genotype in ['ref', 'dup', 'del']
+        assert genotype is None or genotype in ['ref', 'dup', 'del', 'cnv']
         assert variant_frequency is None or 0. <= variant_frequency <= 1.
         assert variant_class is None or variant_class in ['ref', 'dup', 'del', 'mixed']
         assert num_intervals is None or num_intervals >= 1
