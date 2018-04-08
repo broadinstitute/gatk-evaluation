@@ -66,5 +66,5 @@ call_set, included_intervals = cnv_eval.load_gcnv_segments_vcf_file(
 
 
 cnv_eval.GenericCNVCallSet.to_pickle(
-    os.path.join(args.output_path, run_prefix + ".pkl", call_set, included_intervals))
+    os.path.join(args.output_path, run_prefix + ".pkl"), call_set, included_intervals)
 
