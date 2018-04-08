@@ -75,6 +75,7 @@ cnv_eval.GenericCNVCallSet.to_pickle(
 
 
 # load pickled results
+_logger.info("Loading Genome STRiP pickled call-set...")
 truth_call_set_dict, truth_included_loci = cnv_eval.GenericCNVCallSet.from_pickle(args.gs_pkl_file)
 
 # for GS calls: no need to pad segments before merging (by design, the best segment for each sample
@@ -100,8 +101,10 @@ truth_sample_names = set(truth_call_set_dict.keys())
 mutual_samples = truth_sample_names.intersection(trial_call_set_dict.keys())
 mutual_samples = list(mutual_samples)
 
+_logger.info("Generating concordance summary with Genome STRiP call-set...")
 summary_dict = dict()
-for sample_name in mutual_samples:
+for si, sample_name in enumerate(mutual_samples):
+    _logger.info("-- sample name: {0} ({1}/{2})...".format(sample_name, si + 1, len(mutual_samples)))
     summary_dict[sample_name] = cnv_eval.CNVTrialCallSetEvaluatorTargetResolved(
         truth_merged_call_set_dict[sample_name],
         trial_call_set_dict[sample_name],
@@ -109,7 +112,7 @@ for sample_name in mutual_samples:
 
 # pickle summary
 summary_pkl_file = os.path.join(args.output_path, run_prefix + "-gs-concordance-summary.pkl")
-with open(summary_pkl_file, 'w') as f:
+with open(summary_pkl_file, 'wb') as f:
     pickle.dump(summary_dict, f)
 
 
@@ -158,6 +161,7 @@ def get_roc_curve(truth_min_variant_frequency,
     return _fdr_list, _tpr_list, _fpr_list
 
 
+_logger.info("Generating ROC curve...")
 fdr_list, tpr_list, fpr_list = get_roc_curve(0., 1., 0, truth_min_quality=0, trial_max_quality=99)
 
 fig = plt.figure()
