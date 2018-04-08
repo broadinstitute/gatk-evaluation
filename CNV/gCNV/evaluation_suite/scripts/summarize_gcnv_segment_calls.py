@@ -2,9 +2,10 @@ import os
 import json
 import argparse
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pylab as plt
 import pickle
-
 import germline_cnv_evaluation as cnv_eval
 import logging
 
