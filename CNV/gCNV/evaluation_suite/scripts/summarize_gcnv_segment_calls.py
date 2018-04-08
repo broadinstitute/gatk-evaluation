@@ -148,7 +148,9 @@ def get_roc_curve(truth_min_variant_frequency,
     _fpr_list = []
     _tpr_list = []
 
-    for trial_min_quality in np.linspace(0, trial_max_quality, 20):
+    trial_min_quality_list = np.linspace(0, trial_max_quality, 20)
+
+    for trial_min_quality in trial_min_quality_list:
 
         trial_filter = cnv_eval.GenericCopyNumberVariant.get_variant_filter(
             min_quality=trial_min_quality)
@@ -159,13 +161,40 @@ def get_roc_curve(truth_min_variant_frequency,
         _tpr_list.append(concordance.TPR)
         _fpr_list.append(concordance.FPR)
 
-    return _fdr_list, _tpr_list, _fpr_list
+    return trial_min_quality_list, _fdr_list, _tpr_list, _fpr_list
+
+
+def get_sensitivity_variant_frequency_list():
+    variant_frequency_grid = np.linspace(0.002, 1.0, 5)
+    min_variant_frequency_list = np.asarray(variant_frequency_grid[:-1])
+    max_variant_frequency_list = np.asarray(variant_frequency_grid[1:])
+    variant_frequency_mid = 0.5 * (min_variant_frequency_list + max_variant_frequency_list)
+    _tpr_list = []
+    _fpr_list = []
+    total_calls = []
+    for min_variant_frequency, max_variant_frequency in zip(min_variant_frequency_list, max_variant_frequency_list):
+
+        truth_filter = cnv_eval.GenericCopyNumberVariant.get_variant_filter(
+            min_variant_frequency=min_variant_frequency,
+            max_variant_frequency=max_variant_frequency,
+            included_variant_classes={'mixed'})
+
+        trial_filter = cnv_eval.GenericCopyNumberVariant.get_variant_filter()
+
+        concordance = get_concordance_from_summary_dict(truth_filter, trial_filter)
+        total_calls.append(concordance.TP + concordance.FN)
+        _tpr_list.append(concordance.TPR)
+        _fpr_list.append(concordance.FPR)
+
+    return variant_frequency_mid, _tpr_list, _fpr_list, total_calls
 
 
 _logger.info("Generating ROC curve...")
-fdr_list, tpr_list, fpr_list = get_roc_curve(0., 1., 0, truth_min_quality=0, trial_max_quality=99)
+trial_min_quality_list, fdr_list, tpr_list, fpr_list = get_roc_curve(
+    0., 1., 0, truth_min_quality=0, trial_max_quality=99)
 
-fig = plt.figure()
+# generate and save ROC curve
+plt.figure()
 ax = plt.gca()
 ax.plot(fpr_list, tpr_list, label=run_prefix)
 ax.set_ylim((0, 1))
@@ -174,3 +203,31 @@ ax.set_ylabel('true positive rate')
 ax.legend()
 plt.savefig(os.path.join(args.output_path, run_prefix + "-ROC.pdf"))
 
+# save table
+with open(os.path.join(args.output_path, run_prefix + "-ROC.tsv"), 'w') as f:
+    header = '\t'.join(["QUALITY_CUTOFF", "FDR", "TPR", "FPR"]) + '\n'
+    f.write(header)
+    for min_quality, fdr, tpr, fpr in zip(trial_min_quality_list, fdr_list, tpr_list, fpr_list):
+        line = '\t'.join([str(min_quality), str(fdr), str(tpr), str(fpr)]) + '\n'
+        f.write(line)
+
+_logger.info("Generating sensitivity vs. variant frequency curve...")
+variant_frequency_mid, tpr_list, fpr_list, total_calls = get_sensitivity_variant_frequency_list()
+
+# generate and save plot
+plt.figure()
+ax = plt.gca()
+ax.bar(variant_frequency_mid, tpr_list, label=run_prefix)
+ax.set_xlabel('variant frequency')
+ax.set_ylabel('false positive rate')
+ax.legend()
+plt.savefig(os.path.join(args.output_path, run_prefix + "-TPR-VF.pdf"))
+
+# save table
+# save ROC to disk
+with open(os.path.join(args.output_path, run_prefix + "-TPR-VF.tsv"), 'w') as f:
+    header = '\t'.join(["VARIANT_FREQUENCY_MIDPOINT", "TPR", "FPR"]) + '\n'
+    f.write(header)
+    for vf, tpr, fpr in zip(variant_frequency_mid, tpr_list, fpr_list):
+        line = '\t'.join([str(vf), str(tpr), str(fpr)]) + '\n'
+        f.write(line)
