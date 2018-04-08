@@ -837,6 +837,7 @@ class CNVCallSetPerTargetAnalysisSummary:
                 false_bases += int(trial_interval_bases * (1.0 - overlapping_variant.truth_overlap_fraction))
             else:  # discordant match
                 false_bases += trial_interval_bases
+                missed_bases += int(trial_interval_bases * overlapping_variant.truth_overlap_fraction)
 
         for missed_variant in self.missed_variants:
             trial_interval = missed_variant.trial_interval
@@ -869,6 +870,7 @@ class CNVCallSetPerTargetAnalysisSummary:
                 false_intervals += (1.0 - overlapping_variant.truth_overlap_fraction)
             else:  # discordant match
                 false_intervals += 1.0
+                missed_intervals += overlapping_variant.truth_overlap_fraction
 
         for missed_variant in self.missed_variants:
             missed_intervals += missed_variant.truth_overlap_fraction
@@ -898,12 +900,13 @@ class CNVCallSetPerTargetAnalysisSummary:
                                             trial_interval=overlapping_truth_trial.trial_interval,
                                             truth_overlap_fraction=overlapping_truth_trial.truth_overlap_fraction))
             else:
-                if trial_pass:  # count as false positive
-                    filtered_summary.false_variants.append(
-                        ClippedTrialVariant(trial_variant=overlapping_truth_trial.trial_variant,
-                                            trial_interval=overlapping_truth_trial.trial_interval))
-                else:  # dismiss
-                    pass
+                pass
+                # if trial_pass:  # count as false positive
+                #     filtered_summary.false_variants.append(
+                #         ClippedTrialVariant(trial_variant=overlapping_truth_trial.trial_variant,
+                #                             trial_interval=overlapping_truth_trial.trial_interval))
+                # else:  # dismiss
+                #     pass
 
         # missed truth variants
         for missed_variant in self.missed_variants:
