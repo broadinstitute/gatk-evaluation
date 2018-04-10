@@ -83,6 +83,8 @@ def load_codex_vcf_file(codex_vcf_file: str,
     included_intervals = GenomeIntervalTree()
     with open(codex_interval_list_bed_file, 'r') as f:
         for line in f:
+            if line[0] == '@':
+                continue
             split_line = line.strip().split()
             contig = split_line[0]
             start = int(split_line[1])

@@ -802,15 +802,15 @@ class Concordance:
 
     @property
     def TPR(self):
-        return self.TP / (self.TP + self.FN)
+        return self.TP / (self.TP + self.FN + 1e-12)
 
     @property
     def PPV(self):
-        return self.TP / (self.TP + self.FP)
+        return self.TP / (self.TP + self.FP + 1e-12)
 
     @property
     def FPR(self):
-        return self.FP / (self.FP + self.TN)
+        return self.FP / (self.FP + self.TN + 1e-12)
 
 
 class CNVCallSetPerTargetAnalysisSummary:
@@ -883,14 +883,20 @@ class CNVCallSetPerTargetAnalysisSummary:
 
     def get_filtered_summary(self,
                              truth_filter: Callable[[GenericCopyNumberVariant], bool],
-                             trial_filter: Callable[[GenericCopyNumberVariant], bool]):
+                             trial_filter: Callable[[GenericCopyNumberVariant], bool],
+                             interval_filter: Callable[[Interval], bool]):
         filtered_summary = CNVCallSetPerTargetAnalysisSummary()
 
         # variants that overlap between truth and trial
         for overlapping_truth_trial in self.overlapping_variants:
+            trial_interval = overlapping_truth_trial.trial_interval
+            contig = overlapping_truth_trial.truth_variant.contig
+            trial_gcnv_interval = Interval(contig, trial_interval.begin, trial_interval.end)
+            if not interval_filter(trial_gcnv_interval):
+                continue
+
             truth_pass = truth_filter(overlapping_truth_trial.truth_variant)
             trial_pass = trial_filter(overlapping_truth_trial.trial_variant)
-
             if truth_pass:
                 if trial_pass:  # count as a match
                     filtered_summary.overlapping_variants.append(overlapping_truth_trial)
@@ -900,16 +906,21 @@ class CNVCallSetPerTargetAnalysisSummary:
                                             trial_interval=overlapping_truth_trial.trial_interval,
                                             truth_overlap_fraction=overlapping_truth_trial.truth_overlap_fraction))
             else:
-                pass
-                # if trial_pass:  # count as false positive
-                #     filtered_summary.false_variants.append(
-                #         ClippedTrialVariant(trial_variant=overlapping_truth_trial.trial_variant,
-                #                             trial_interval=overlapping_truth_trial.trial_interval))
-                # else:  # dismiss
-                #     pass
+                if trial_pass:  # count as false positive
+                    filtered_summary.false_variants.append(
+                        ClippedTrialVariant(trial_variant=overlapping_truth_trial.trial_variant,
+                                            trial_interval=overlapping_truth_trial.trial_interval))
+                else:  # dismiss
+                    pass
 
         # missed truth variants
         for missed_variant in self.missed_variants:
+            trial_interval = missed_variant.trial_interval
+            contig = missed_variant.truth_variant.contig
+            trial_gcnv_interval = Interval(contig, trial_interval.begin, trial_interval.end)
+            if not interval_filter(trial_gcnv_interval):
+                continue
+
             truth_pass = truth_filter(missed_variant.truth_variant)
             if truth_pass:  # if truth passes, it is still a false negative
                 filtered_summary.missed_variants.append(missed_variant)
@@ -918,6 +929,12 @@ class CNVCallSetPerTargetAnalysisSummary:
 
         # false trial variants
         for false_variant in self.false_variants:
+            trial_interval = false_variant.trial_interval
+            contig = false_variant.trial_variant.contig
+            trial_gcnv_interval = Interval(contig, trial_interval.begin, trial_interval.end)
+            if not interval_filter(trial_gcnv_interval):
+                continue
+
             trial_pass = trial_filter(false_variant.trial_variant)
             if trial_pass:  # if trial passes, it is still a false positive
                 filtered_summary.false_variants.append(false_variant)
@@ -1001,3 +1018,66 @@ class CNVTrialCallSetEvaluatorTargetResolved:
                     summary.overlapping_variants.append(overlapping_truth_trial)
 
         return summary
+
+
+class VariantFrequency:
+    def __init__(self, num_dels, num_dups, num_samples):
+        self.num_dels = num_dels
+        self.num_dups = num_dups
+        self.num_samples = num_samples
+
+    @property
+    def variant_frequency(self):
+        return (self.num_dels + self.num_dups) / self.num_samples
+
+    @property
+    def del_frequency(self):
+        return self.num_dels / self.num_samples
+
+    @property
+    def dup_frequency(self):
+        return self.num_dups / self.num_samples
+
+    def __repr__(self):
+        return "VF: {0:f}, DEL_VF: {1:f}, DUP_VF: {2:f}".format(
+            self.variant_frequency, self.del_frequency, self.dup_frequency)
+
+    __str__ = __repr__
+
+
+class CNVCallSetPerTargetVariantFrequencyCalculator:
+    def __init__(self,
+                 call_set_dict: Dict[str, GenericCNVCallSet],
+                 trial_interval_tree: GenomeIntervalTree,
+                 sample_names: List[str],
+                 contig_set: Optional[Set[str]] = None):
+
+        self.call_set_dict = call_set_dict
+        self.trial_interval_tree = trial_interval_tree
+        self.contig_set = contig_set
+        self.sample_names = sample_names
+
+    def __call__(self) -> Dict[Interval, VariantFrequency]:
+        result: Dict[Interval, VariantFrequency] = dict()
+        if self.contig_set is None:
+            contig_set = self.call_set_dict.items().__iter__().__next__()[1].contig_set
+        else:
+            contig_set = self.contig_set
+        for contig in contig_set:
+            trial_interval_list = sorted(list(self.trial_interval_tree[contig]))
+            for trial_interval in trial_interval_list:
+                query = [self.call_set_dict[sample_name].genome_interval_tree[contig].search(
+                    trial_interval.begin, trial_interval.end) for sample_name in self.sample_names]
+                num_dels = 0
+                num_dups = 0
+                for variant_query in query:
+                    if len(variant_query) == 0:
+                        continue
+                    variant: GenericCopyNumberVariant = variant_query.__iter__().__next__().data
+                    if variant.is_del:
+                        num_dels += 1
+                    if variant.is_dup:
+                        num_dups += 1
+                result[Interval(contig, trial_interval.begin, trial_interval.end)] = VariantFrequency(
+                    num_dels, num_dups, len(self.sample_names))
+        return result
