@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>GATK CNV Evaluation</title>
+    <link rel="stylesheet" type="text/css" href="style.css">
+</head>
+<body>
+<h1>GATK CNV Evaluation</h1>
+<h2> GATK Docker: {{ gatk_docker }} </h2>
+<h2> Eval Docker: {{ eval_docker }} </h2>
+
+<h2>Reproducibility</h2>
+<p>
+    Two replicates of HCC1143, a 100% purity tumor, were used to assess the repeatability of GATK in the context of the current sequencing process. Each replicate is used as a case sample for this assessment.  The 2D histogram below represents a distibution of the noise when comparing segment means at each target.
+</p>
+<ul>
+    <li>Axes are copy number, which was defined as the estimated copy ratio times the ploidy (3.7).</li>
+    <li><a href="{{ reproducibility_link }}">Raw Data</a></li>
+</ul>
+
+<table width="95%">
+    <tr>
+    {% for p in reproducibility_plots %}
+        <td><img width="75%"  src="{{ p }}" /></td>
+    {% endfor %}
+    </tr>
+</table>
+
+<h4>Reproducibility Summary</h4>
+<p>For passing: </p>
+<ul>
+    <li>The RMSE of the targets (at positions < 3*ploidy) must be below threshold</li>
+    <li>The Call Concordance must be above threshold</li>
+</ul>
+<!-- Auto-generated --> {{ reproducibility_call_concordance_summary|safe }} <!-- End auto-generated -->
+
+<h4>Call Concordance By Target</h4>
+<!-- Auto-generated --> {{ reproducibility_call_conf_mat|safe }} <!-- End auto-generated -->
+
+<h2>HCC1143T Purity Series</h2>
+<p>To assess the analytical sensitivity of GATK as a function of purity, varying purities of a well-characterized tumor cell line sample (HCC1143) and its matched normal (HCC1143BL) were used as case samples.</p>
+<ul>
+    <li>N = (number of ground-truth targets) or (number of targets events called)</li>
+</ul>
+<table width="95%">
+    <tr>
+        <td width="0.5"><img width="75%" src="{{ purity_amp_plot }}"></td>
+        <td width="0.5"><img width="75%" src="{{ purity_del_plot }}"></td>
+    </tr>
+
+<tr>
+<td width="0.5">
+    <h4>Amplifications</h4>
+<!-- Auto-generated --> {{ purity_amp_summary|safe }} <!-- End auto-generated -->
+</td>
+<td width="0.5">
+    <h4>Deletions</h4>
+<!-- Auto-generated --> {{ purity_del_summary|safe }} <!-- End auto-generated -->
+</td>
+</tr>
+</table>
+
+<h2>Clinical Sensitivity</h2>
+<p>The sensitivity (by base pairs) of the GATK calls was calculated for each of the five TCGA tumor samples.  Sample SM-74P5I (TCGA-55-8615-01A-11D-2389-01) failed QC metrics and does not count towards failure.</p>
+<table width="95%">
+    {% for t in zip_clinical_plots %}
+    <tr>
+        <td width="0.5"><img width="75%" src="{{ t.0 }}" /></td>
+        <td width="0.5"><img width="75%" src="{{ t.1 }}" /></td>
+    </tr>
+    {% endfor %}
+</table>
+
+<h2>WGS Concordance</h2>
+<p>Concordance against the PCAWG Pilot consensus copy number estimates that have been converted to copy ratio, based on PCAWG consensus purity and ploidy estimates.</p>
+<p>From the PCAWG website regarding the ground truth:</p>
+<blockquote>This is the result of a procedure developed to obtain consensus copy number across 6 individual CNA callers: ABSOLUTE, ACEseq, Battenberg, CloneHD, JaBbA and Sclust. We first ran all methods across all samples with the consensus SVs included and applied an algorithm across the segmentations to obtain consensus breakpoints. With these mandatory breakpoints the methods were rerun without calling any additional breakpoints.
+
+
+Samples for which the methods disagreed on the ploidy have gone through an adjustment algorithm that applies various ploidy adjustments in order to maximise the agreement and were assessed through a rigorous review procedure. After obtaining consensus on the ploidy segments are considered individually to assign copy number states: Clonal agreement (3 stars), majority vote agreement and agreement after rounding subclonal copy number (2 stars) and a call from the best method on that sample (1 star). This finally yields a complete, clonal copy number profile.
+</blockquote>
+<p>Notes:</p>
+<ul>
+    <li>Red rows indicate a high mean absolute deviation/error from the ground truth segments.  Lower is better.  Threshold for red mark: {{ bp_concordance_mad_germline_filtered_threshold }}</li>
+    <li>Dark red rows indicate that the sample is not likely to be useful for testing.</li>
+    <li>The gray box is excluded data from all calculations (even excluded in total bp and MAD calculations).</li>
+</ul>
+<!-- Auto-generated --> {{ bp_concordance_summary|safe }} <!-- End auto-generated -->
+<table width="95%">
+    <tr>
+        <td width="0.5" align="center"><h4>Germline Events Filtered</h4></td>
+        <td width="0.5" align="center"><h4>Germline Events Unfiltered</h4></td>
+    </tr>
+    {% for t in zip_zip_reproducibility_names %}
+    <tr>
+        <td width="0.5" align="center">{{ t.0 }} (<a href="{{ t.2 }}" >Plot Data</a>)<img width="95%" src="{{ t.1.0 }}" /></td>
+        <td width="0.5" align="center">{{ t.0 }} (<a href="{{ t.3 }}" >Plot Data</a>)<img width="95%" src="{{ t.1.1 }}" /></td>
+    </tr>
+    {% endfor %}
+</table>
+
+</body>
+</html>

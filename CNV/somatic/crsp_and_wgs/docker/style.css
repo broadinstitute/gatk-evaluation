@@ -1,0 +1,22 @@
+body {
+  margin: 2em
+}
+
+p {
+  margin: 0 2em
+}
+
+table {
+  margin: 1em auto
+}
+table.dataframe {
+
+}
+
+th {
+  padding: 0 1em
+}
+
+img {
+  max-width: 100%
+}
