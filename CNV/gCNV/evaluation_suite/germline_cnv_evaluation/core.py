@@ -165,11 +165,14 @@ class GenericCopyNumberVariant(Interval):
         Returns:
             a float in range [0, 1]
         """
-        assert ref in ['self', 'other', 'larger', 'symmetric']
+        assert ref in ['self', 'other', 'larger', 'symmetric', 'reciprocal']
         if first.contig != first.contig:
             return 0.0
         else:
-            if ref == 'self':
+            if ref == 'reciprocal':
+                overlap_length = min(first.end, second.end) - max(first.start, second.start)
+                return min(float(overlap_length) / (first.end - first.start), float(overlap_length) / (second.end - second.start))
+            elif ref == 'self':
                 interval_length = first.end - first.start
             elif ref == 'other':
                 interval_length = second.end - second.start
