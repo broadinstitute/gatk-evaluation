@@ -3,7 +3,7 @@ import pickle
 from gcnvkernel import Interval
 from typing import Optional, Set, Generator, Dict, Tuple, Callable, Union, List
 from intervaltree_bio import GenomeIntervalTree, IntervalTree
-from collections import namedtuple
+from collections import namedtuple, Counter
 import logging
 
 _logger = logging.getLogger(__name__)
@@ -906,12 +906,13 @@ class CNVCallSetPerTargetAnalysisSummary:
                                             trial_interval=overlapping_truth_trial.trial_interval,
                                             truth_overlap_fraction=overlapping_truth_trial.truth_overlap_fraction))
             else:
-                if trial_pass:  # count as false positive
-                    filtered_summary.false_variants.append(
-                        ClippedTrialVariant(trial_variant=overlapping_truth_trial.trial_variant,
-                                            trial_interval=overlapping_truth_trial.trial_interval))
-                else:  # dismiss
-                    pass
+                pass
+                # if trial_pass:  # count as false positive
+                #     filtered_summary.false_variants.append(
+                #         ClippedTrialVariant(trial_variant=overlapping_truth_trial.trial_variant,
+                #                             trial_interval=overlapping_truth_trial.trial_interval))
+                # else:  # dismiss
+                #     pass
 
         # missed truth variants
         for missed_variant in self.missed_variants:
@@ -1020,10 +1021,11 @@ class CNVTrialCallSetEvaluatorTargetResolved:
         return summary
 
 
-class VariantFrequency:
-    def __init__(self, num_dels, num_dups, num_samples):
+class LocusVariantSummary:
+    def __init__(self, num_dels, num_dups, entropy, num_samples):
         self.num_dels = num_dels
         self.num_dups = num_dups
+        self.entropy = entropy
         self.num_samples = num_samples
 
     @property
@@ -1039,13 +1041,13 @@ class VariantFrequency:
         return self.num_dups / self.num_samples
 
     def __repr__(self):
-        return "VF: {0:f}, DEL_VF: {1:f}, DUP_VF: {2:f}".format(
-            self.variant_frequency, self.del_frequency, self.dup_frequency)
+        return "VF: {0:f}, DEL_VF: {1:f}, DUP_VF: {2:f}, ENTROPY: {3:f}".format(
+            self.variant_frequency, self.del_frequency, self.dup_frequency, self.entropy)
 
     __str__ = __repr__
 
 
-class CNVCallSetPerTargetVariantFrequencyCalculator:
+class CNVCallSetPerTargetLocusVariantSummaryCalculator:
     def __init__(self,
                  call_set_dict: Dict[str, GenericCNVCallSet],
                  trial_interval_tree: GenomeIntervalTree,
@@ -1057,8 +1059,19 @@ class CNVCallSetPerTargetVariantFrequencyCalculator:
         self.contig_set = contig_set
         self.sample_names = sample_names
 
-    def __call__(self) -> Dict[Interval, VariantFrequency]:
-        result: Dict[Interval, VariantFrequency] = dict()
+    @staticmethod
+    def get_entropy(item_list):
+        counts = Counter(item_list)
+        size = len(item_list)
+        entropy = 0
+        for count in counts.values():
+            p = count / size
+            entropy -= p * np.log(p + 1e-20)
+        return entropy
+
+    def __call__(self) -> Dict[Interval, LocusVariantSummary]:
+        result: Dict[Interval, LocusVariantSummary] = dict()
+        ref_copy_number = 2
         if self.contig_set is None:
             contig_set = self.call_set_dict.items().__iter__().__next__()[1].contig_set
         else:
@@ -1068,16 +1081,19 @@ class CNVCallSetPerTargetVariantFrequencyCalculator:
             for trial_interval in trial_interval_list:
                 query = [self.call_set_dict[sample_name].genome_interval_tree[contig].search(
                     trial_interval.begin, trial_interval.end) for sample_name in self.sample_names]
+                cn_list = list()
                 num_dels = 0
                 num_dups = 0
                 for variant_query in query:
                     if len(variant_query) == 0:
-                        continue
+                        cn_list.append(ref_copy_number)
                     variant: GenericCopyNumberVariant = variant_query.__iter__().__next__().data
+                    cn_list.append(variant.var_copy_number)
                     if variant.is_del:
                         num_dels += 1
                     if variant.is_dup:
                         num_dups += 1
-                result[Interval(contig, trial_interval.begin, trial_interval.end)] = VariantFrequency(
-                    num_dels, num_dups, len(self.sample_names))
+                entropy = self.get_entropy(cn_list)
+                result[Interval(contig, trial_interval.begin, trial_interval.end)] = LocusVariantSummary(
+                    num_dels, num_dups, entropy, len(self.sample_names))
         return result
