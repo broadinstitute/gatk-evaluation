@@ -4,7 +4,7 @@ matplotlib.use('Agg')
 
 import os
 from argparse import RawDescriptionHelpFormatter, ArgumentParser
-from clopper_pearson import clopper_pearson
+from CNV.somatic.crsp_and_wgs.docker.py.clopper_pearson import clopper_pearson
 import matplotlib.pyplot as plt
 
 import pandas

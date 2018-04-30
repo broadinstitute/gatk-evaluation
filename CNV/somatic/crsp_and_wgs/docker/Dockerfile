@@ -13,19 +13,21 @@ RUN pip install scikit-learn==0.19.1
 RUN apt-get update && \
 apt-get install -y openjdk-8-jdk
 
-# For HTML rendering, install django
+# For HTML rendering, install django (and Jinja)
 RUN pip install Jinja2
 RUN pip install Django==1.11.11
 
-COPY consensus.20170217.purity.ploidy.txt /root/consensus.20170217.purity.ploidy.txt
-COPY UUID-BARCODE.tsv /root/UUID-BARCODE.tsv
-COPY plot_purity_series_hcc1143.py /root/plot_purity_series_hcc1143.py
-COPY plot_bp_concordance_pcawg_pilot.py /root/plot_bp_concordance_pcawg_pilot.py
-COPY run_plot_reproducibility.py /root/run_plot_reproducibility.py
-COPY final_centromere_hg19.seg /root/final_centromere_hg19.seg
-COPY clopper_pearson.py /root/clopper_pearson.py
-COPY plot_clinical_sensitivity.py /root/plot_clinical_sensitivity.py
-COPY run_html_report.py /root/run_html_report.py
-COPY style.css /root/style.css
-COPY CliUtils.py /root/CliUtils.py
-COPY aggregate_template.html /root/aggregate_template.html
+COPY data/consensus.20170217.purity.ploidy.txt /root/consensus.20170217.purity.ploidy.txt
+COPY data/UUID-BARCODE.tsv /root/UUID-BARCODE.tsv
+COPY data/final_centromere_hg19.seg /root/final_centromere_hg19.seg
+
+COPY py/plot_purity_series_hcc1143.py /root/plot_purity_series_hcc1143.py
+COPY py/plot_bp_concordance_pcawg_pilot.py /root/plot_bp_concordance_pcawg_pilot.py
+COPY py/run_plot_reproducibility.py /root/run_plot_reproducibility.py
+COPY py/clopper_pearson.py /root/clopper_pearson.py
+COPY py/plot_clinical_sensitivity.py /root/plot_clinical_sensitivity.py
+COPY py/run_html_report.py /root/run_html_report.py
+COPY py/CliUtils.py /root/CliUtils.py
+
+COPY html/style.css /root/style.css
+COPY html/aggregate_template.html /root/aggregate_template.html

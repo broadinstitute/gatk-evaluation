@@ -26,7 +26,7 @@ def parse_options():
     parser.add_argument("--gatk-docker", type=str, help="GATK docker image used.  This is purely for display in the result.  Tehre is no way to enforce whether results were generated with this image.")
     parser.add_argument("--eval-docker", type=str, help="GATK eval image used.  This is purely for display in the result.  Tehre is no way to enforce whether results were generated with this image.")
     parser.add_argument("--mad-threshold", required=False, type=float, default=0.1, help="Threshold for passing WGS concordance.")
-    parser.add_argument("--html_template", type=str, default="aggregate_template.html", help="Template to use.")
+    parser.add_argument("--html_template", type=str, default="html/aggregate_template.html", help="Template to use.")
     parser.add_argument("output_dir", type=str, help="Output dir.  Will be created if it does not exist.")
     parser.add_argument("-l", "--log_filename", type=str, default="html_aggregate.log", help="log filename.  Will be overwritten if it exists.")
     # Process arguments

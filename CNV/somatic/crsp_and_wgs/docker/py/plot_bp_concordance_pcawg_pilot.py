@@ -46,18 +46,23 @@ print("purity = " + str(purity))
 print("ploidy = " + str(ploidy))
 """
 
+
 def calculate_mad_with_weights(comparison_df):
+    # type: (DataFrame) -> float
     comparison_df_mad = comparison_df[~(comparison_df[CR_GUESS_COLUMN].isnull()) & ~(comparison_df[GT_CR_COLUMN_NAME].isnull())]
     if len(comparison_df_mad) == 0:
         return 0.0
     return mae(comparison_df_mad[CR_GUESS_COLUMN], comparison_df_mad[GT_CR_COLUMN_NAME],
-                 sample_weight=comparison_df_mad["num_bases"])
+               sample_weight=comparison_df_mad["num_bases"])
+
 
 def calculate_mad_no_weights(comparison_df):
+    # type: (DataFrame) -> float
     comparison_df_mad = comparison_df[~(comparison_df[CR_GUESS_COLUMN].isnull()) & ~(comparison_df[GT_CR_COLUMN_NAME].isnull())]
     if len(comparison_df_mad) == 0:
         return 0.0
     return mae(comparison_df_mad[CR_GUESS_COLUMN], comparison_df_mad[GT_CR_COLUMN_NAME])
+
 
 def plot_bp_seg_concordance(output_dir, df_to_plot, short_name, other_lines_for_title=None, title_plot=None):
 
@@ -110,11 +115,18 @@ def plot_bp_seg_concordance(output_dir, df_to_plot, short_name, other_lines_for_
     h.savefig(output_dir + short_name + "_weighted_by_seg.png", dpi=90)
     plt.close(h)
 
+
 def get_frac_match_value(v):
+    """
+    :param v: float or str ... It will be a str when multiple values have been appended together.
+    :rtype: float
+    :return:
+    """
     if isinstance(v, float):
         return v
     list_values = [float(x) for x in v.split("__")]
     return max(list_values)
+
 
 def create_segments_df_for_comparison(input_tsv, purity, ploidy):
 
@@ -140,13 +152,11 @@ def create_segments_df_for_comparison(input_tsv, purity, ploidy):
     comparison_pruned = comparison_pruned[comparison_pruned["num_bases"] > MIN_SEGMENT_LENGTH_BP]
     print("Removing segments that are less than minimum  of " + str(MIN_SEGMENT_LENGTH_BP) + " bp")
 
-    unique_cn_in_gt = cr_gt.unique()
-    unique_cr_in_gt = cr_gt.unique()
-
     return comparison_pruned
 
 
 def create_segments_df_for_comparison_germline_removed(segments_df):
+    # type: (DataFrame) -> (DataFrame)
     comparison_edit_germline_removed = segments_df
 
     # Remove centromeres
@@ -161,8 +171,14 @@ def create_segments_df_for_comparison_germline_removed(segments_df):
 
 
 def retrieve_purity_ploidy(gt_fn):
-    purity_ploidy_df = pandas.read_csv(PURITY_PLOIDY_FILENAME, sep="\t")
-    uuid_barcode_df = pandas.read_csv(UUID_BARCODE_FILE, sep="\t")
+    # type: (str) -> (float,float,float)
+    """
+    Retrieve the purity and ploidy from the provided consensus file.  There is a hack in that this depends on the
+     filename.
+    :param gt_fn:
+    :return:
+    """
+    purity_ploidy_df = pandas.read_csv(PURITY_PLOIDY_FILENAME, sep="\t")  # type: DataFrame
 
     base_filename = os.path.basename(gt_fn)
     final_search_string = base_filename.split(".")[0]
@@ -170,7 +186,8 @@ def retrieve_purity_ploidy(gt_fn):
     purity = purity_ploidy_df[purity_ploidy_df["samplename"] == final_search_string]["purity"].tolist()[0]
     ploidy = purity_ploidy_df[purity_ploidy_df["samplename"] == final_search_string]["ploidy"].tolist()[0]
     purity_conf_mad = purity_ploidy_df[purity_ploidy_df["samplename"] == final_search_string]["purity_conf_mad"].tolist()[0]
-    return (purity, ploidy, purity_conf_mad)
+    return purity, ploidy, purity_conf_mad
+
 
 def parse_options():
     epilog = """ This tool will create plots of the concordance with PCAWG pilot ground truth files. This tool is very fussy about the incoming data being in its expected format.
