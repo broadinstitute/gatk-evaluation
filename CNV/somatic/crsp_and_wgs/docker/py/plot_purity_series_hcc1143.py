@@ -4,7 +4,7 @@ matplotlib.use('Agg')
 
 import os
 from argparse import RawDescriptionHelpFormatter, ArgumentParser
-from CNV.somatic.crsp_and_wgs.docker.py.clopper_pearson import clopper_pearson
+from clopper_pearson import clopper_pearson
 import matplotlib.pyplot as plt
 
 import pandas
@@ -12,36 +12,28 @@ from pandas import DataFrame
 from pandas import Series
 
 ploidy = 3.7
-"""sample_id	purity
-SM-74NEG	0
-SM-74P2T	10
-SM-74P35	30
-SM-74P3J	40
-SM-74P3K	70
-SM-74P3M	60
-SM-74P4M	100
-SM-74P51	80
-SM-74P56	90"""
 
-# purities = [0.0, 0.1, 0.3, 0.4, 0.6, 0.7, 0.8, 0.9, 1.0]
-# input_tsvs = ["SM-74NEG.bam.calls.tsv", "SM-74P2T.bam.calls.tsv", "SM-74P35.bam.calls.tsv", "SM-74P3J.bam.calls.tsv",
-#               "SM-74P3M.bam.calls.tsv", "SM-74P3K.bam.calls.tsv", "SM-74P51.bam.calls.tsv", "SM-74P56.bam.calls.tsv",
-#               "SM-74P4M.bam.calls.tsv"]
-
-gt_cn_column_name = "cn"
-gt_cr_column_name = "gt_cr"
-guess_cr_column_name = "guess_cr"
-# input_guess_cr_column_name = "LOG2_COPY_RATIO_POSTERIOR_50"
-input_guess_cr_column_name = "MEAN_LOG2_COPY_RATIO"
-is_log2_guess_cr = True
+GT_CN_COLUMN_NAME = "cn"
+GT_CR_COLUMN_NAME = "gt_cr"
+GUESS_CR_COLUMN_NAME = "guess_cr"
+INPUT_GUESS_CR_COLUMN_NAME = "MEAN_LOG2_COPY_RATIO"
+IS_LOG2_GUESS_CR = True
+MULTI_VALUE_SEPARATOR = "__"
 
 
-def moreThanOneValue(v):
+def more_than_one_value(v):
+    """
+    This method is a bit of a hack to determine if a given value was a concatentation of multiple values.
+    This method is not reusable much.
+    :param v: float or str.  Must be input from a segs_df DataFrame
+    :return: True if this is a float or there are no known separators.
+    """
     if not isinstance(v, str):
         return True
-    return v.find("__") == -1
+    return v.find(MULTI_VALUE_SEPARATOR) == -1
 
-purity_dict = {"SM-74NEG": 0.0,
+# Update this as any new ground truth purity is known and necessary.
+PURITY_DICT = {"SM-74NEG": 0.0,
                "SM-74P2T": 0.1,
                "SM-74P35": 0.3,
                "SM-74P3J": 0.4,
@@ -54,19 +46,49 @@ purity_dict = {"SM-74NEG": 0.0,
 
 
 def find_purity_from_filename(fn):
-    for k in purity_dict.keys():
+    # type: (str) -> float
+    """
+    A bit of a hack to map the filenames (sample ID) to the purity.
+    :param fn: input filename
+    :return: None if no purity found.  Otherwise a purity from 0.0 - 1.0
+    """
+    for k in PURITY_DICT.keys():
         if fn.find(k) != -1:
-            return purity_dict[k]
+            return PURITY_DICT[k]
     return None
 
+
 def find_sample_from_filename(fn):
-    for k in purity_dict.keys():
+    # type: (str) -> str
+    """
+    Find the sample name (i.e. the key in the purity dictionary) in the given filename.
+
+    This method is simplistic and will return the first hit.
+    :param fn: Filename to query for known sample names.
+    :return: the samplename if found in the purity dictionary.  None otherwise.
+    """
+    for k in PURITY_DICT.keys():
         if fn.find(k) != -1:
             return k
     return None
 
 
 def plot_purity_series(output_dir, df_to_plot, plot_title, min_sensitivity, min_precision, min_supported_purity, is_show_line=True):
+    # type: (str, DataFrame, str, float, float, float, float, bool) -> None
+    """
+    Create the necessary png files for the purity evaluation.
+
+    :param output_dir: Directory to deposit the png files.
+    :param df_to_plot: DataFrame with fields: purity, sensitivity, sens_lo, sens_hi, precision, prec_lo, prec_hi
+    :param plot_title: title to use on the plots
+    :param min_sensitivity: threshold to display for the minimum passing sensitivity for min_supported purity and above)
+    :param min_precision: threshold to display for the minimum passing precision for min_supported purity and above)
+    :param min_supported_purity: Minimum purity we evaluate.
+    :param is_show_line: Whether to show the confidence interval.
+    :return:
+    """
+
+    # Create a figure that will have multiple draw commands invoked (hence the hold command).
     h = plt.figure()
     h.hold(True)
 
@@ -101,7 +123,18 @@ def plot_purity_series(output_dir, df_to_plot, plot_title, min_sensitivity, min_
 
 
 def is_passing(hi_sens, hi_prec, purity, min_sensitivity, min_precision, min_supported_purity):
-    if purity <= min_supported_purity:
+    # type: (float, float, float, float, float, float) -> bool
+    """
+    Return whether the sensitivity and precision meet minimum thresholds for all min supported purity and above.
+    :param hi_sens:
+    :param hi_prec:
+    :param purity:
+    :param min_sensitivity:
+    :param min_precision:
+    :param min_supported_purity:
+    :return: whether all metrics were passing.  Return true if the purity is below the min_supported_purity.
+    """
+    if purity < min_supported_purity:
         return True
     if hi_sens < min_sensitivity:
         return False
@@ -109,7 +142,16 @@ def is_passing(hi_sens, hi_prec, purity, min_sensitivity, min_precision, min_sup
         return False
     return True
 
+
 def run_purity_plotting(input_tsvs, output_dir):
+    # type: (list[str], str) -> None
+    """
+    Create plot and summary files.
+
+    :param input_tsvs: Files with both test and GT data merged (possibly via CombineSegmentBreakpoints in the GATK)
+    :param output_dir: directory to deposit plots and summary files.
+    :return:
+    """
     result_cols = ["sensitivity", "sens_lo", "sens_hi", "sens_N", "precision", "prec_lo", "prec_hi", "prec_N", "purity", "pass"]
     amp_results_df = DataFrame(columns=result_cols)
     del_results_df = DataFrame(columns=result_cols)
@@ -131,33 +173,33 @@ def run_purity_plotting(input_tsvs, output_dir):
         segs_df_tmp = pandas.read_csv(input_tsv, sep="\t", comment="@")
 
         # Clean up by removing all locations where there was more than one ground truth value for copy number/ratio
-        segs_df = segs_df_tmp[segs_df_tmp[gt_cn_column_name].apply(moreThanOneValue)]
-        tmp = segs_df[gt_cn_column_name]
+        segs_df = segs_df_tmp[segs_df_tmp[GT_CN_COLUMN_NAME].apply(more_than_one_value)]
+        tmp = segs_df[GT_CN_COLUMN_NAME]
         tmp = pandas.to_numeric(tmp, errors='coerce', downcast='integer')
-        segs_df[gt_cn_column_name] = tmp
+        segs_df[GT_CN_COLUMN_NAME] = tmp
 
-        cr_gt = 1 + (purity * ((segs_df[gt_cn_column_name] / ploidy) - 1))
-        cr_gt.rename(gt_cr_column_name, inplace=True)
+        cr_gt = 1 + (purity * ((segs_df[GT_CN_COLUMN_NAME] / ploidy) - 1))
+        cr_gt.rename(GT_CR_COLUMN_NAME, inplace=True)
 
-        if is_log2_guess_cr:
-            cr_guess = 2 ** segs_df[input_guess_cr_column_name]
+        if IS_LOG2_GUESS_CR:
+            cr_guess = 2 ** segs_df[INPUT_GUESS_CR_COLUMN_NAME]
         else:
-            cr_guess = segs_df[input_guess_cr_column_name]
+            cr_guess = segs_df[INPUT_GUESS_CR_COLUMN_NAME]
 
-        cr_guess.rename(guess_cr_column_name, inplace=True)
+        cr_guess.rename(GUESS_CR_COLUMN_NAME, inplace=True)
 
-        segs_df[gt_cr_column_name] = cr_gt
-        segs_df[guess_cr_column_name] = cr_guess
+        segs_df[GT_CR_COLUMN_NAME] = cr_gt
+        segs_df[GUESS_CR_COLUMN_NAME] = cr_guess
         segs_gt_to_consider = segs_df[~segs_df["CALL"].isnull() & (segs_df["CONTIG"] != "2")]
 
         ## Amps
-        tp = segs_gt_to_consider[(segs_gt_to_consider["CALL"] == "+") & (segs_gt_to_consider[gt_cn_column_name] >= 5)]
-        all_gt_amp = segs_gt_to_consider[segs_gt_to_consider[gt_cn_column_name] >= 5]
+        tp = segs_gt_to_consider[(segs_gt_to_consider["CALL"] == "+") & (segs_gt_to_consider[GT_CN_COLUMN_NAME] >= 5)]
+        all_gt_amp = segs_gt_to_consider[segs_gt_to_consider[GT_CN_COLUMN_NAME] >= 5]
         sens_amps = float(len(tp)) / float(len(all_gt_amp))
         sens_amps_ci = clopper_pearson(len(tp), len(all_gt_amp))
         sens_amps_N = len(all_gt_amp)
 
-        fp = segs_gt_to_consider[(segs_gt_to_consider["CALL"] == "+") & (segs_gt_to_consider[gt_cn_column_name] <= 4)]
+        fp = segs_gt_to_consider[(segs_gt_to_consider["CALL"] == "+") & (segs_gt_to_consider[GT_CN_COLUMN_NAME] <= 4)]
         prec_amps = float(len(tp)) / float(len(tp) + len(fp))
         prec_amps_ci = clopper_pearson(len(tp), (len(tp) + len(fp)))
         prec_amps_N = len(tp) + len(fp)
@@ -178,14 +220,14 @@ def run_purity_plotting(input_tsvs, output_dir):
 
         ## Dels
         tp_del = segs_gt_to_consider[
-            (segs_gt_to_consider["CALL"] == "-") & (segs_gt_to_consider[gt_cn_column_name] <= 2)]
-        all_gt_del = segs_gt_to_consider[segs_gt_to_consider[gt_cn_column_name] <= 2]
+            (segs_gt_to_consider["CALL"] == "-") & (segs_gt_to_consider[GT_CN_COLUMN_NAME] <= 2)]
+        all_gt_del = segs_gt_to_consider[segs_gt_to_consider[GT_CN_COLUMN_NAME] <= 2]
         sens_dels = float(len(tp_del)) / float(len(all_gt_del))
         sens_dels_ci = clopper_pearson(len(tp_del), len(all_gt_del))
         sens_dels_N = len(all_gt_del)
 
         fp_del = segs_gt_to_consider[
-            (segs_gt_to_consider["CALL"] == "-") & (segs_gt_to_consider[gt_cn_column_name] > 2)]
+            (segs_gt_to_consider["CALL"] == "-") & (segs_gt_to_consider[GT_CN_COLUMN_NAME] > 2)]
         prec_dels = float(len(tp_del)) / float(len(tp_del) + len(fp_del))
         prec_dels_ci = clopper_pearson(len(tp_del), (len(tp_del) + len(fp_del)))
         prec_dels_N = len(tp_del) + len(fp_del)

@@ -5,6 +5,35 @@ import matplotlib
 from pandas.core.frame import DataFrame
 from pandas.core.series import Series
 
+CONTIG_COL = "CONTIG"
+START_COL = "START"
+END_COL = "END"
+LOG2_COPY_RATIO_POSTERIOR_90_COL = "LOG2_COPY_RATIO_POSTERIOR_90"
+LOG2_COPY_RATIO_POSTERIOR_10_COL = "LOG2_COPY_RATIO_POSTERIOR_10"
+LARGE_EVENT_TYPE_COL = "type"
+NUM_BASES_COL = "num_bases"
+POSSIBLE_GERMLINE_COL = "POSSIBLE_GERMLINE"
+
+STAR_COL = "star"
+
+PURITY_PLOIDY_INPUT_PURITY_CONF_MAD_COL = "purity_conf_mad"
+PURITY_PLOIDY_INPUT_PLOIDY_COL = "ploidy"
+PURITY_PLOIDY_INPUT_PURITY_COL = "purity"
+PURITY_PLOIDY_INPUT_SAMPLENAME_COL = "samplename"
+
+FINAL_RESULTS_STARS_COL = "stars"
+FINAL_RESULTS_MAE_NO_GERMLINE_COL = "mae_no_germline"
+FINAL_RESULTS_MAE_COL = "mae"
+FINAL_RESULTS_BASES_EVALUATED_NO_GERMLINE_COL = "num_bases_evaluated_no_germline"
+FINAL_RESULTS_BASES_EVALUATED_COL = "num_bases_evaluated"
+FINAL_RESULTS_PROP_SUCCESS_NO_GERMLINE_COL = "prop_success_no_germline"
+FINAL_RESULTS_PROP_SUCCESS_COL = "prop_success"
+FINAL_RESULTS_DISTANCE_SUCCESS_COL = "distance_success"
+FINAL_RESULTS_PLOIDY_COL = "ploidy"
+FINAL_RESULTS_PURITY_COL = "purity"
+FINAL_RESULTS_SAMPLE_COL = "samplename"
+
+
 matplotlib.use('Agg')
 
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
@@ -25,38 +54,24 @@ MIN_SEGMENT_LENGTH_BP = 0
 MIN_STARS = 2.5
 PREVALENCE_MIN_FOR_BLACKLIST = 0.1
 FRACMATCH_MIN = 0.95
-
-"""
-# Purity/ploidy files uses the same sample names as PCAWG, not TCGA, so the samplename column will match the ground truth segment files.
-
-purity_ploidy_filename = "consensus.20170217.purity.ploidy.txt"
-
-purity_ploidy_df = pandas.read_csv(purity_ploidy_filename, sep="\t")
-
-#sample_of_interest = "5a7f3c88-ef02-4e97-8009-5622245b6a09"
-#input_tsv = "G25783.TCGA-55-6986-01A-11D-1945-08.2.bam.tsv"
-sample_of_interest = "d432e99a-67fb-4609-b90f-99438eee7cae"
-# input_tsv = "G39019.TCGA-DA-A1I2-06A-21D-A19A-08.1.bam.tsv"
-input_tsv = "G39019.TCGA-DA-A1I2.tagged.seg.final.tsv.final.tsv"
-
-purity = float(purity_ploidy_df[purity_ploidy_df.samplename == sample_of_interest].purity)
-ploidy = float(purity_ploidy_df[purity_ploidy_df.samplename == sample_of_interest].ploidy)
-print("sample: " + sample_of_interest)
-print("purity = " + str(purity))
-print("ploidy = " + str(ploidy))
-"""
+FINAL_RESULTS_COLUMN_LIST = [FINAL_RESULTS_SAMPLE_COL, FINAL_RESULTS_PURITY_COL, FINAL_RESULTS_PLOIDY_COL,
+                             FINAL_RESULTS_DISTANCE_SUCCESS_COL,
+                             FINAL_RESULTS_PROP_SUCCESS_COL, FINAL_RESULTS_PROP_SUCCESS_NO_GERMLINE_COL,
+                             FINAL_RESULTS_BASES_EVALUATED_COL,
+                             FINAL_RESULTS_BASES_EVALUATED_NO_GERMLINE_COL, FINAL_RESULTS_MAE_COL, FINAL_RESULTS_MAE_NO_GERMLINE_COL,
+                             FINAL_RESULTS_STARS_COL]
 
 
-def calculate_mad_with_weights(comparison_df):
+def calculate_mae_with_weights(comparison_df):
     # type: (DataFrame) -> float
     comparison_df_mad = comparison_df[~(comparison_df[CR_GUESS_COLUMN].isnull()) & ~(comparison_df[GT_CR_COLUMN_NAME].isnull())]
     if len(comparison_df_mad) == 0:
         return 0.0
     return mae(comparison_df_mad[CR_GUESS_COLUMN], comparison_df_mad[GT_CR_COLUMN_NAME],
-               sample_weight=comparison_df_mad["num_bases"])
+               sample_weight=comparison_df_mad[NUM_BASES_COL])
 
 
-def calculate_mad_no_weights(comparison_df):
+def calculate_mae_no_weights(comparison_df):
     # type: (DataFrame) -> float
     comparison_df_mad = comparison_df[~(comparison_df[CR_GUESS_COLUMN].isnull()) & ~(comparison_df[GT_CR_COLUMN_NAME].isnull())]
     if len(comparison_df_mad) == 0:
@@ -65,7 +80,17 @@ def calculate_mad_no_weights(comparison_df):
 
 
 def plot_bp_seg_concordance(output_dir, df_to_plot, short_name, other_lines_for_title=None, title_plot=None):
+    # type: (str, DataFrame, str, list[str], str) -> None
+    """
+    Save a png file of the concordance plot between WGS ground truth and the test case.
 
+    :param output_dir: Directory to save the output plots.
+    :param df_to_plot: DataFrame to plot.  Includes columns for both the ground truth and the test case.
+    :param short_name: a string that can be used as an identifier in the filename of the plot.
+    :param other_lines_for_title: Arbitrary strings to be included in the title.
+    :param title_plot:
+    :return:
+    """
     if not output_dir.endswith("/"):
         output_dir = output_dir + "/"
 
@@ -83,13 +108,13 @@ def plot_bp_seg_concordance(output_dir, df_to_plot, short_name, other_lines_for_
         str_other_lines_for_title = "\n" + "\n".join(other_lines_for_title)
 
     h = plt.figure()
-    mae_bp = calculate_mad_with_weights(df_to_plot)
+    mae_bp = calculate_mae_with_weights(df_to_plot)
     hi_cn = 3.5
     step_cn = 0.1
     plt.hist2d(df_to_plot[CR_GUESS_COLUMN], df_to_plot[GT_CR_COLUMN_NAME],
                bins=[numpy.arange(0, hi_cn, step_cn),numpy.arange(0, hi_cn, step_cn)], cmin=0.0001,
                norm=matplotlib.colors.LogNorm(), cmap='viridis_r',
-               weights=df_to_plot["num_bases"])
+               weights=df_to_plot[NUM_BASES_COL])
     plt.xlabel("GATK CNV 1.5 Model Segments Copy Ratio")
     plt.ylabel("Calculated Ground Truth Copy Ratio")
     plt.title(title_plot + "  bp count.  MAD: " + ("%2.3f" % mae_bp) + str_other_lines_for_title)
@@ -101,7 +126,7 @@ def plot_bp_seg_concordance(output_dir, df_to_plot, short_name, other_lines_for_
     plt.close(h)
 
     h = plt.figure()
-    mae_seg = calculate_mad_no_weights(df_to_plot)
+    mae_seg = calculate_mae_no_weights(df_to_plot)
     plt.hist2d(df_to_plot[CR_GUESS_COLUMN], df_to_plot[GT_CR_COLUMN_NAME],
                bins=[numpy.arange(0, hi_cn, step_cn),numpy.arange(0, hi_cn, step_cn)], cmin=0.0001,
                norm=matplotlib.colors.LogNorm(), cmap='viridis_r')
@@ -116,40 +141,53 @@ def plot_bp_seg_concordance(output_dir, df_to_plot, short_name, other_lines_for_
     plt.close(h)
 
 
-def get_frac_match_value(v):
+def retrieve_purity_ploidy(gt_fn):
+    # type: (str) -> (float,float,float)
     """
-    :param v: float or str ... It will be a str when multiple values have been appended together.
-    :rtype: float
+    Retrieve the purity and ploidy from the provided consensus file.  There is a hack in that this depends on the
+     filename.
+
+     Purity/ploidy files uses the same sample names as PCAWG, not TCGA, so the samplename column will match the ground truth segment files.
+
+    :param gt_fn: Filename of PCAWG consensus ground truth
     :return:
     """
-    if isinstance(v, float):
-        return v
-    list_values = [float(x) for x in v.split("__")]
-    return max(list_values)
+    purity_ploidy_df = pandas.read_csv(PURITY_PLOIDY_FILENAME, sep="\t")  # type: DataFrame
+
+    base_filename = os.path.basename(gt_fn)
+    final_search_string = base_filename.split(".")[0]
+
+    purity = purity_ploidy_df[purity_ploidy_df[PURITY_PLOIDY_INPUT_SAMPLENAME_COL] == final_search_string][
+        PURITY_PLOIDY_INPUT_PURITY_COL].tolist()[0]
+    ploidy = purity_ploidy_df[purity_ploidy_df[PURITY_PLOIDY_INPUT_SAMPLENAME_COL] == final_search_string][
+        PURITY_PLOIDY_INPUT_PLOIDY_COL].tolist()[0]
+    purity_conf_mad = purity_ploidy_df[purity_ploidy_df[PURITY_PLOIDY_INPUT_SAMPLENAME_COL] == final_search_string][
+        PURITY_PLOIDY_INPUT_PURITY_CONF_MAD_COL].tolist()[0]
+    return purity, ploidy, purity_conf_mad
 
 
 def create_segments_df_for_comparison(input_tsv, purity, ploidy):
-
+    # type: (str, float, float) -> DataFrame
     segs_df = pandas.read_csv(input_tsv, sep="\t", comment="@")
 
     cr_gt = 1 + (purity * ((segs_df[GT_CN_COLUMN_NAME] / ploidy) - 1))
     cr_gt.rename(GT_CR_COLUMN_NAME, inplace=True)
     cr = 2 ** segs_df[CR_GUESS_COLUMN]
-    cr10 = 2 ** segs_df["LOG2_COPY_RATIO_POSTERIOR_10"]
-    cr90 = 2 ** segs_df["LOG2_COPY_RATIO_POSTERIOR_90"]
-    weight = segs_df["END"] - segs_df["START"]
-    weight.rename("num_bases", inplace=True)
+    cr10 = 2 ** segs_df[LOG2_COPY_RATIO_POSTERIOR_10_COL]
+    cr90 = 2 ** segs_df[LOG2_COPY_RATIO_POSTERIOR_90_COL]
+    weight = segs_df[END_COL] - segs_df[START_COL]
+    weight.rename(NUM_BASES_COL, inplace=True)
 
     # TODO: Get rid of this next statement, since it will cut additional columns that are added in later veresions
-    comparison = pandas.concat([segs_df["CONTIG"], segs_df["START"], segs_df["END"], cr_gt, cr, weight, segs_df["star"],
-                                cr10, cr90,  segs_df["POSSIBLE_GERMLINE"],  segs_df["type"]], axis=1)
+    comparison = pandas.concat([segs_df[CONTIG_COL], segs_df[START_COL], segs_df[END_COL], cr_gt, cr, weight, segs_df[STAR_COL],
+                                cr10, cr90, segs_df[POSSIBLE_GERMLINE_COL], segs_df[LARGE_EVENT_TYPE_COL]], axis=1)
     comparison_pruned = comparison[~(((comparison[CR_GUESS_COLUMN] < 1.1) & (comparison[CR_GUESS_COLUMN] > 0.9)) &
                                ((comparison[GT_CR_COLUMN_NAME] < 1.1) & (comparison[GT_CR_COLUMN_NAME] > 0.9)))]
 
-    comparison_pruned = comparison_pruned[comparison_pruned["star"] > MIN_STARS]
-    print("Stars being considered: " + str(comparison_pruned["star"].unique().astype('int32').tolist()))
+    comparison_pruned = comparison_pruned[comparison_pruned[STAR_COL] > MIN_STARS]
+    print("Stars being considered: " + str(comparison_pruned[STAR_COL].unique().astype('int32').tolist()))
 
-    comparison_pruned = comparison_pruned[comparison_pruned["num_bases"] > MIN_SEGMENT_LENGTH_BP]
+    comparison_pruned = comparison_pruned[comparison_pruned[NUM_BASES_COL] > MIN_SEGMENT_LENGTH_BP]
     print("Removing segments that are less than minimum  of " + str(MIN_SEGMENT_LENGTH_BP) + " bp")
 
     return comparison_pruned
@@ -157,6 +195,12 @@ def create_segments_df_for_comparison(input_tsv, purity, ploidy):
 
 def create_segments_df_for_comparison_germline_removed(segments_df):
     # type: (DataFrame) -> (DataFrame)
+    """
+    Prune the segments tagged as possible germline.  I.e. the POSSIBLE_GERMLINE column is non-zero.
+
+    :param segments_df: DataFrame with the POSSIBLE_GERMLINE column
+    :return: DataFrame
+    """
     comparison_edit_germline_removed = segments_df
 
     # Remove centromeres
@@ -165,28 +209,9 @@ def create_segments_df_for_comparison_germline_removed(segments_df):
 
     # Remove possible germline events
     comparison_edit_germline_removed = comparison_edit_germline_removed[
-        (comparison_edit_germline_removed["POSSIBLE_GERMLINE"] == "0")]
+        (comparison_edit_germline_removed[POSSIBLE_GERMLINE_COL] == "0")]
 
     return comparison_edit_germline_removed
-
-
-def retrieve_purity_ploidy(gt_fn):
-    # type: (str) -> (float,float,float)
-    """
-    Retrieve the purity and ploidy from the provided consensus file.  There is a hack in that this depends on the
-     filename.
-    :param gt_fn:
-    :return:
-    """
-    purity_ploidy_df = pandas.read_csv(PURITY_PLOIDY_FILENAME, sep="\t")  # type: DataFrame
-
-    base_filename = os.path.basename(gt_fn)
-    final_search_string = base_filename.split(".")[0]
-
-    purity = purity_ploidy_df[purity_ploidy_df["samplename"] == final_search_string]["purity"].tolist()[0]
-    ploidy = purity_ploidy_df[purity_ploidy_df["samplename"] == final_search_string]["ploidy"].tolist()[0]
-    purity_conf_mad = purity_ploidy_df[purity_ploidy_df["samplename"] == final_search_string]["purity_conf_mad"].tolist()[0]
-    return purity, ploidy, purity_conf_mad
 
 
 def parse_options():
@@ -218,10 +243,7 @@ if __name__ == '__main__':
 
     if not output_dir.endswith("/"):
         output_dir = output_dir + "/"
-
-    final_results_df = DataFrame(columns=["samplename", "purity", "ploidy", "distance_success",
-                                          "prop_success", "prop_success_no_germline", "num_bases_evaluated",
-                                          "num_bases_evaluated_no_germline", "mad", "mad_no_germline", "stars"])
+    final_results_df = DataFrame(columns=FINAL_RESULTS_COLUMN_LIST)
     for i, input_tsv in enumerate(input_tsvs):
         print("\n============" + input_tsv)
         purity_ploidy_tuple = retrieve_purity_ploidy(gt_tsvs[i])
@@ -235,14 +257,16 @@ if __name__ == '__main__':
             print(input_tsv + " has no segments that remain after initial pruning by star count.")
             continue
         print("Copy neutral region not considered.")
-        print("Total number of bases (in Mbp): " + str((comparison_edit["num_bases"].astype('float')/1e6).sum()))
+        print("Total number of bases (in Mbp): " + str((comparison_edit[NUM_BASES_COL].astype('float') / 1e6).sum()))
 
         comparison_edit_germline_removed = create_segments_df_for_comparison_germline_removed(comparison_edit)
 
         print("Removing common CNV segments, centromeres, and segDupeSegments.")
-        print("   Proportion of bases remaining: " + str(float(comparison_edit_germline_removed["num_bases"].sum())/float(comparison_edit["num_bases"].sum())))
-        print("Total number of bases remaining (in Mbp): " + str((comparison_edit_germline_removed["num_bases"].astype('float')/1e6).sum()))
-        print("Median length of segment (breakpoints merged with ground truth): " + str(comparison_edit["num_bases"].median()))
+        print("   Proportion of bases remaining: " + str(float(comparison_edit_germline_removed[NUM_BASES_COL].sum()) / float(comparison_edit[
+                                                                                                                          NUM_BASES_COL].sum())))
+        print("Total number of bases remaining (in Mbp): " + str((comparison_edit_germline_removed[NUM_BASES_COL].astype('float') / 1e6).sum()))
+        print("Median length of segment (breakpoints merged with ground truth): " + str(comparison_edit[
+                                                                                            NUM_BASES_COL].median()))
         print("Threshold (min) length of segment (breakpoints merged with ground truth): " + str(MIN_SEGMENT_LENGTH_BP))
 
         sample_file = os.path.splitext(os.path.basename(input_tsv))[0]
@@ -257,23 +281,25 @@ if __name__ == '__main__':
         distance_all_df = abs(comparison_edit[CR_GUESS_COLUMN] - comparison_edit[GT_CR_COLUMN_NAME])
         comparison_edit_success = comparison_edit_germline_removed[distance_all_df < distance_success]
 
-        success_bp = comparison_edit_germline_removed_success['num_bases'].sum()
-        all_bp = comparison_edit_germline_removed['num_bases'].sum()
+        success_bp = comparison_edit_germline_removed_success[NUM_BASES_COL].sum()
+        all_bp = comparison_edit_germline_removed[NUM_BASES_COL].sum()
         print(str(success_bp))
         print(str(all_bp))
         print("Proportion of bp within " + str(distance_success) + ": " + str(float(success_bp)/float(all_bp)))
 
-        success_bp_all = comparison_edit_success['num_bases'].sum()
-        all_bp_all = comparison_edit['num_bases'].sum()
+        success_bp_all = comparison_edit_success[NUM_BASES_COL].sum()
+        all_bp_all = comparison_edit[NUM_BASES_COL].sum()
         print("With germline events unfiltered... Proportion of bp within " + str(distance_success) + ": " + str(float(success_bp_all)/float(all_bp_all)))
 
-        line_dict = {"samplename": sample_file, "purity": purity, "ploidy": ploidy, "distance_success": distance_success,
-                                          "prop_success": float(success_bp_all)/float(all_bp_all),
-                     "prop_success_no_germline": float(success_bp)/float(all_bp), "num_bases_evaluated": all_bp_all,
-                                          "num_bases_evaluated_no_germline": all_bp,
-                     "mad": round(calculate_mad_with_weights(comparison_edit), 3),
-                     "mad_no_germline": round(calculate_mad_with_weights(comparison_edit_germline_removed), 3),
-                     "stars": ",".join(comparison_edit["star"].unique().astype('str').tolist())}
+        line_dict = {FINAL_RESULTS_SAMPLE_COL: sample_file, FINAL_RESULTS_PURITY_COL: purity,
+                     FINAL_RESULTS_PLOIDY_COL: ploidy, FINAL_RESULTS_DISTANCE_SUCCESS_COL: distance_success,
+                     FINAL_RESULTS_PROP_SUCCESS_COL: float(success_bp_all) / float(all_bp_all),
+                     FINAL_RESULTS_PROP_SUCCESS_NO_GERMLINE_COL: float(success_bp) / float(all_bp),
+                     FINAL_RESULTS_BASES_EVALUATED_COL: all_bp_all,
+                     FINAL_RESULTS_BASES_EVALUATED_NO_GERMLINE_COL: all_bp,
+                     FINAL_RESULTS_MAE_COL: round(calculate_mae_with_weights(comparison_edit), 3),
+                     FINAL_RESULTS_MAE_NO_GERMLINE_COL: round(calculate_mae_with_weights(comparison_edit_germline_removed), 3),
+                     FINAL_RESULTS_STARS_COL: ",".join(comparison_edit[STAR_COL].unique().astype('str').tolist())}
         final_results_df = final_results_df.append(Series(name=sample_file, data=line_dict))
 
         other_lines_unfiltered = ["Proportion of bp w/in CR of " + str(distance_success) + ": " + str(float(success_bp_all)/float(all_bp_all)),

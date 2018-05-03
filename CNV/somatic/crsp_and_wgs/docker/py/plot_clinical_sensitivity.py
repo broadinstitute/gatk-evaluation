@@ -7,37 +7,20 @@ import matplotlib
 
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas
-import scipy
-import scipy.stats
 from pandas import DataFrame
 from pandas import Series
 
 SMALL_SEG_THRESHOLD = 7
 
-
-def clopper_pearson(k, n, alpha=0.05):
-    """
-    http://en.wikipedia.org/wiki/Binomial_proportion_confidence_interval
-    alpha confidence intervals for a binomial distribution of k expected successes on n trials
-    Clopper Pearson intervals are a conservative estimate.
-    """
-    lo = scipy.stats.beta.ppf(alpha / 2, k, n - k + 1)
-    hi = scipy.stats.beta.ppf(1 - alpha / 2, k + 1, n - k)
-    if (n - k) == 0:
-        return lo, 1.0
-    if np.isnan(lo):
-        lo = 0.0
-    return lo, hi
-
-
+from clopper_pearson import clopper_pearson
 
 GUESS_CALL_COLUMN = "CALL"
 GT_CALL_COLUMN = "Segment_Call"
 GT_SEG_MEAN_COLUMN = "Segment_Mean"
 
 CALL_TO_ENGLISH = {"+": "Amplification", "-": "Deletion"}
+
 
 def parse_options():
     epilog = """ This tool will sensitivity plots of the ground truth. This tool assumes that CombineSegmentBreakpoints has already been run between the candidate file and its ground truth.
@@ -54,7 +37,13 @@ def parse_options():
 
 
 def create_sensitivity_df(list_of_lists_tp_fn, sample_names):
-    """Each entry in list_of_lists_tp_fn is a list of length 2.  Index 0 is TP and index 1 is FN"""
+    # type: (list[list[int]], list[str]) -> DataFrame
+    """
+
+    :param list_of_lists_tp_fn:
+    :param sample_names:
+    :return:
+    """
     if len(sample_names) != len(list_of_lists_tp_fn):
         raise Exception("list of lists must match number of sample names")
 
@@ -74,6 +63,18 @@ def create_sensitivity_df(list_of_lists_tp_fn, sample_names):
 
 def plot_clinical_sensitivity(sensitivity_df, output_dir, plot_title, min_sens_val=0.8,
                               file_prefix='clinical_'):
+    # type: (DataFrame, str, str, float, str) -> None
+    """
+    Create a clinical sensitivity png file.  The filename will be:
+    output_dir + '/' + file_prefix + plot_title + '.png'
+
+    :param sensitivity_df: DataFrame to plot.  Must have columns: sensitivity, sens_lo, sens_hi, sens_N
+    :param output_dir: directory to drop the plots.
+    :param plot_title: Title string
+    :param min_sens_val: Where to plot a cutoff minimum sensitivity
+    :param file_prefix: prefix for the output file.
+    :return:
+    """
     h = plt.figure()
     h.hold(True)
     xvals = range(0, len(sensitivity_df.index))
@@ -136,7 +137,7 @@ if __name__ == '__main__':
 
             gt_seg_value_counts = relevant_df["keys"].value_counts()
 
-            # TP, FN
+            # [TP, FN]
             small_totals_by_target = [0, 0]
             totals_by_target = [0, 0]
             small_totals_by_seg = [0, 0]
@@ -154,7 +155,6 @@ if __name__ == '__main__':
 
                 tp_by_target = (overlapping_segs[GT_CALL_COLUMN] == overlapping_segs[GUESS_CALL_COLUMN]).sum()
                 fn_by_target = (overlapping_segs[GT_CALL_COLUMN] != overlapping_segs[GUESS_CALL_COLUMN]).sum()
-                # print(str(tp_by_target) + "  " + str(fn_by_target))
 
                 totals_by_target[0] = totals_by_target[0] + tp_by_target
                 totals_by_target[1] = totals_by_target[1] + fn_by_target

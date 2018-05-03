@@ -12,7 +12,7 @@
 
 <h2>Reproducibility</h2>
 <p>
-    Two replicates of HCC1143, a 100% purity tumor, were used to assess the repeatability of GATK in the context of the current sequencing process. Each replicate is used as a case sample for this assessment.  The 2D histogram below represents a distibution of the noise when comparing segment means at each target.
+    Two technical replicates of HCC1143 (two distinct libraries from one sample), a 100% purity tumor, were used to assess the repeatability of GATK in the context of the current sequencing process.  Each replicate is used as a case sample for this assessment.  The 2D histogram below was created by comparing segment means at each target.  This evaluation is attempting to quantify the noise of the entire pipeline, from sequencing through the generation of the copy ratio profile.  Ideally, all results would lie on the y=x line and RMSE would be zero.
 </p>
 <ul>
     <li>Axes are copy number, which was defined as the estimated copy ratio times the ploidy (3.7).</li>
@@ -35,13 +35,23 @@
 </ul>
 <!-- Auto-generated --> {{ reproducibility_call_concordance_summary|safe }} <!-- End auto-generated -->
 
-<h4>Call Concordance By Target</h4>
+<h4>Call Concordance</h4>
+<p>Counts are number of targets.</p>
 <!-- Auto-generated --> {{ reproducibility_call_conf_mat|safe }} <!-- End auto-generated -->
 
 <h2>HCC1143T Purity Series</h2>
-<p>To assess the analytical sensitivity of GATK as a function of purity, varying purities of a well-characterized tumor cell line sample (HCC1143) and its matched normal (HCC1143BL) were used as case samples.</p>
+<p>To assess the analytical sensitivity of the GATK CNV caller (amp/del) as a function of purity, varying purities of a well-characterized tumor cell line sample (HCC1143) and its matched normal (HCC1143BL) were used as case samples.</p>
+<p>Ground truth was derived from JaBbA absolute copy number calls on a 2x250 WGS PCR free bam file of HCC1143.</p>
 <ul>
-    <li>N = (number of ground-truth targets) or (number of targets events called)</li>
+    <li>Ground truth calls were determined as follows: <ul>
+        <li>Absolute copy number of 0-2: Deletion</li>
+        <li>5 or above: Amplification</li>
+        <li>3 or 4: Neutral</li>
+        </ul>
+    </li>
+    <li>"Ground-truth targets" are targets that overlapped an absolute copy number call in the ground truth.</li>
+    <li>Sensitivity:  N = number of ground-truth targets</li>
+    <li>Precision:  N = number of targets in called segments</li>
 </ul>
 <table width="95%">
     <tr>
@@ -62,7 +72,7 @@
 </table>
 
 <h2>Clinical Sensitivity</h2>
-<p>The sensitivity (by base pairs) of the GATK calls was calculated for each of the five TCGA tumor samples.  Sample SM-74P5I (TCGA-55-8615-01A-11D-2389-01) failed QC metrics and does not count towards failure.</p>
+<p>The sensitivity (by base pairs) of the GATK calls was calculated for each of the five TCGA tumor samples.  Sample SM-74P5I (TCGA-55-8615-01A-11D-2389-01) failed QC metrics, but is included.</p>
 <table width="95%">
     {% for t in zip_clinical_plots %}
     <tr>

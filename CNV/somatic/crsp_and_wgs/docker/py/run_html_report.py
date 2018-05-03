@@ -8,6 +8,8 @@ import django
 import pandas
 from django.conf import settings
 from django.template import Context, Template
+from pandas.core.frame import DataFrame
+from pandas.core.series import Series
 
 import CliUtils
 
@@ -23,8 +25,8 @@ def parse_options():
     parser.add_argument("--clinical-dir", type=str, help="Directory of the clinical plots.  Should be a relative path to the output_dir specified below.")
     parser.add_argument("--reproducibility-dir", type=str, help="Directory of the reproducibility plots.  Should be a relative path to the output_dir specified below.")
     parser.add_argument("--bp-concordance-dir", type=str, help="Directory of the WGS bp concordance plots.  Should be a relative path to the output_dir specified below.")
-    parser.add_argument("--gatk-docker", type=str, help="GATK docker image used.  This is purely for display in the result.  Tehre is no way to enforce whether results were generated with this image.")
-    parser.add_argument("--eval-docker", type=str, help="GATK eval image used.  This is purely for display in the result.  Tehre is no way to enforce whether results were generated with this image.")
+    parser.add_argument("--gatk-docker", type=str, help="GATK docker image used.  This is purely for display in the result.  There is no way to enforce whether results were generated with this image.")
+    parser.add_argument("--eval-docker", type=str, help="GATK eval image used.  This is purely for display in the result.  There is no way to enforce whether results were generated with this image.")
     parser.add_argument("--mad-threshold", required=False, type=float, default=0.1, help="Threshold for passing WGS concordance.")
     parser.add_argument("--html_template", type=str, default="html/aggregate_template.html", help="Template to use.")
     parser.add_argument("output_dir", type=str, help="Output dir.  Will be created if it does not exist.")
@@ -36,19 +38,32 @@ def parse_options():
 
 
 def float_to_pretty_str(f):
+    # type float -> str
+    """
+    Standardize how we print floating point numbers.
+    :param f: The float to be printed.
+    :return: string representation of the float.
+    """
     return "%3.3f" % f
 
-def color_values_above(s, val, color='red'):
-    return ['background-color: ' + color if (si > val or math.isnan(si)) else '' for si in s]
 
+def color_row_value_below(df_in, index_name, val, color='red'):
+    # type: (DataFrame, str, float, str) -> DataFrame
+    """
+    Method used to color the cells of a single row of a table based on whether a specific column meets a threshold.
+    Returns a format string for each row that can be used in the html.
 
-def color_values_below(s, val, color='red'):
-    return ['background-color: ' + color if (si < val or math.isnan(si)) else '' for si in s]
+    :param df_in: DataFrame of values to drive table color determination.
+    :param index_name: Column name that is compared to the threshold val.
+    :param val: min threshold for a background color change.
+    :param color: color to use for the background.
+    :return: lists of strings corresponding to each entry in Series s.  Empty string if the value did not meet min
+        threshold.
 
-
-def color_row_value_below(x, index_name, val, color='red'):
+    Inspired by https://stackoverflow.com/questions/47469478/how-to-color-whole-rows-in-python-pandas-based-on-value
+    """
     #copy df to new - original data are not changed
-    df = x.copy()
+    df = df_in.copy()
     #set by condition
     mask = df[index_name] < val
     df.loc[mask, :] = 'background-color: ' + color
@@ -57,6 +72,17 @@ def color_row_value_below(x, index_name, val, color='red'):
 
 
 def color_row_str_equals(x, index_name, val, color='red'):
+    # type: (DataFrame, str, str, str) -> DataFrame
+    """
+    See :func color_row_value_below:, but val is a string that must match the column value for a
+    background color change.
+
+    :param x:
+    :param index_name:
+    :param val:
+    :param color:
+    :return:
+    """
     #copy df to new - original data are not changed
     df = x.copy()
     #set by condition
@@ -66,8 +92,17 @@ def color_row_str_equals(x, index_name, val, color='red'):
     return df
 
 
-#TODO: Get citation for this method, so that you are not rude.
 def color_row_value_above(x, index_name, val, color='red'):
+    # type: (DataFrame, str, float, str) -> DataFrame
+    """
+    See :func color_row_value_below:, but val is the max threshold for a background color change.
+
+    :param x:
+    :param index_name:
+    :param val:
+    :param color:
+    :return:
+    """
     #copy df to new - original data are not changed
     df = x.copy()
     #set by condition
@@ -78,6 +113,13 @@ def color_row_value_above(x, index_name, val, color='red'):
 
 
 def render_purity_summary_html(purity_summary_df):
+    # type: (DataFrame) -> str
+    """
+    Create a html block that formats the table for the purity summary.  Colors any row where the "pass" field is "False"
+
+    :param purity_summary_df: DataFrame of purity results.
+    :return: string of html.
+    """
     return purity_summary_df.style.set_table_styles([
         {'selector': 'td', 'props': [
             ('padding', '4px'),
@@ -88,7 +130,15 @@ def render_purity_summary_html(purity_summary_df):
         {'selector': 'tr:nth-child(odd)', 'props': [('background-color', '#ddd')]}
         ]).apply(color_row_str_equals, axis=None, index_name='pass', val="False", color='#f99').render()
 
+
 def render_reproducibility_summary_html(reproducibility_summary):
+    # type: (DataFrame) -> str
+    """
+    Create a html block that formats the table for the reproducibility summary.  Colors any row where the "isPass" field is "False"
+
+    :param reproducibility_summary: DataFrame of purity results.
+    :return: string of html.
+    """
     return reproducibility_summary.style.set_table_styles([
         {'selector': 'td', 'props': [
             ('padding', '4px'),
@@ -145,8 +195,6 @@ def main():
     bp_concordance_summary = bp_concordance_summary.drop(['samplename'], axis=1)
     bp_concordance_summary.sort_index(inplace=True)
 
-
-
     ### Reproducibility
     reproducibility_call_conf_mat = pandas.read_csv(reproducibility_plots_dir + "/call_conf_mat.tsv",
                                                                    sep="\t", index_col=0)
@@ -189,6 +237,7 @@ def main():
                     "purity_del_summary": render_purity_summary_html(purity_del_summary)
                     }
 
+    ## Render and write the actual html
     html_template_str = file(html_template).read()
     out_fp = file(output_dir + "report.html", 'w')
     out_fp.write(Template(html_template_str).render(Context(context_dict)))

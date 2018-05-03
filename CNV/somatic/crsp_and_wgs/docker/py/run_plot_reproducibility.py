@@ -17,6 +17,28 @@ import pandas
 def plot_reproducibility(dfj, output_dir, sample1, sample2, threePThresh, title, step_in_plot, hi_lim=40.0,
                          file_prefix='reproducibility_', label="Copy Number", col1="guess_cn_1", col2="guess_cn_2",
                          is_plot_3p=True):
+    # type: (DataFrame, str, str, str, float, str, float, float, str, str, str, str, bool) -> None
+    """
+
+    Create a log 2D histogram from a DataFrame (dfj) and two columns (col1, col2), which will be x, y, respectively.
+    Writes a png to the output directory:  output_dir + '/' + file_prefix + "Reproducibility.png"
+
+    :param dfj: DataFrame with the data to be counted in the 2D histogram.
+    :param output_dir: Name of the output directory.
+    :param sample1: Name associated with the first column.  This is usually a sample name.  This will be prefix of the x-axis label
+    :param sample2: Name associated with the second column.  This is usually a sample name.  This will be prefix of the y-axis label
+    :param threePThresh: Value for the 3*ploidy, since this plots in copy number space.
+    :param title: Title in the plot.
+    :param step_in_plot: Steps for x and y axis.  I.e. bin sizes.
+    :param hi_lim: Maximum copy number to plot.
+    :param file_prefix: Starting string for the png filename.
+    :param label: axis label that will be appended to sample1 and sample2 strings.
+    :param col1: column name in dfj to use for the x-axis
+    :param col2: column name in dfj to use for the y-axis
+    :param is_plot_3p: Whether to plot the three * ploidy line.
+    :return:
+    """
+
     h = plt.figure()
 
     plt.hist2d(dfj[col1], dfj[col2],

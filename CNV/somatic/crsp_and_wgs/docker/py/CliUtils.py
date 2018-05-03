@@ -1,6 +1,7 @@
 import logging
 
 def setup_logging(log_filename, is_verbose_stdout=True):
+    # type: (str, bool) -> None
     """ Create logging for stdout and to a file.
     """
     # Create a basic logger to a file
@@ -21,10 +22,12 @@ def setup_logging(log_filename, is_verbose_stdout=True):
     logging.getLogger('').addHandler(ch)
 
 def count_lines(filename):
+    # type: (str) -> int
     """ http://stackoverflow.com/questions/845058/how-to-get-line-count-cheaply-in-python
     :param filename:
     :return:
     """
+    i = -1
     with open(filename) as f:
         for i, l in enumerate(f):
             pass

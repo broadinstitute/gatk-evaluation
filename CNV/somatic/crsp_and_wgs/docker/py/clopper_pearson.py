@@ -4,6 +4,7 @@ import scipy.stats
 
 
 def clopper_pearson(k, n, alpha=0.05):
+    # type: (int, int, float) -> tuple(float, float)
     """
     http://en.wikipedia.org/wiki/Binomial_proportion_confidence_interval
     alpha confidence intervals for a binomial distribution of k expected successes on n trials
