@@ -163,7 +163,7 @@ def main():
     html_template = args.html_template
     output_dir = args.output_dir
     CliUtils.setup_logging(log_filename, is_verbose_stdout=True)
-    mad_threshold = args.mad_threshold
+    mae_threshold = args.mad_threshold
     logging.info(str(args))
 
     # Setup the django template engine.
@@ -211,7 +211,7 @@ def main():
                     "clinical_del_plots": clinical_del_plots,
                     "zip_clinical_plots": zip(clinical_amp_plots, clinical_del_plots),
                     "zip_bp_concordance_plots": zip_bp_concordance_plots,
-                    "bp_concordance_mad_germline_filtered_threshold": str(mad_threshold),
+                    "bp_concordance_mad_germline_filtered_threshold": str(mae_threshold),
                     "bp_concordance_summary": bp_concordance_summary.style.set_table_styles([
                         {'selector': 'td', 'props': [
                                      ('padding', '4px'),
@@ -221,8 +221,8 @@ def main():
                             ('text-align', 'left'),("font-size", "11px")]},
                         {'selector': 'tr:nth-child(odd)', 'props': [('background-color', '#ddd')]}
                         ])
-                        .apply(color_row_value_above, axis=None, index_name='mad_no_germline', val=mad_threshold, color='#f99')
-                        .apply(color_row_value_below, axis=None, index_name='mad_no_germline', val=1e-16, color='red')
+                        .apply(color_row_value_above, axis=None, index_name='mae_no_germline', val=mae_threshold, color='#f99')
+                        .apply(color_row_value_below, axis=None, index_name='mae_no_germline', val=1e-16, color='red')
                         .render(),
                     "bp_concordance_raw_data_files_germline_removed": bp_concordance_raw_data_files_germline_removed,
                     "bp_concordance_raw_data_files": bp_concordance_raw_data_files,
