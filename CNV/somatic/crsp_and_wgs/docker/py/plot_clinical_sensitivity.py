@@ -40,7 +40,7 @@ def create_sensitivity_df(list_of_lists_tp_fn, sample_names):
     # type: (list[list[int]], list[str]) -> DataFrame
     """
 
-    :param list_of_lists_tp_fn:
+    :param list_of_lists_tp_fn: list corresponding to each sample in sample_names.  Each list is TP, FN counts.
     :param sample_names:
     :return:
     """
