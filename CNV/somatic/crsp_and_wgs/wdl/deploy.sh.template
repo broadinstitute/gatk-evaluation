@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+
+set -e
+
+# You must modify the below parameters.  No parameters needed for invocation.
+
+##### MODIFY PARAMETERS START
+# Directory to do all of the running (make sure to end with '/')
+WORK_DIR=/path/to/workingdir/
+
+# Directory of the somatic crsp and WGS eval WDL dir. (make sure to end with '/')
+EVAL_WDL_DIR=/path/to/CNV/somatic/crsp_and_wgs/wdl/
+
+# Must match the gatk docker in the json file.  For example, if the docker image is "us.gcr.io/broad-gatk/gatk:4.0.2.1",
+#   then this variable will be 4.0.2.1
+# If you want to use a git hash (e.g. a74c8e268333a9eefcbdd0cd65da4e62e87e7df6), you can set RELEASE to that as well.
+RELEASE=4.0.2.1
+
+##### MODIFY PARAMETERS END (Do not modify below this line)
+
+
+if [ ! -d "$EVAL_WDL_DIR" ]; then
+  # Control will enter here if WDL dir doesn't exist.
+  echo "ERROR: You must have an existing directory that contains the evaluation WDL"
+  echo "ERROR: ${EVAL_WDL_DIR} does not exist."
+  exit 1
+fi
+
+mkdir -p ${WORK_DIR}
+
+echo "Downloading CNV workflow from github tag/hash: ${RELEASE} ...."
+curl "https://raw.githubusercontent.com/broadinstitute/gatk/${RELEASE}/scripts/cnv_wdl/cnv_common_tasks.wdl" > ${WORK_DIR}cnv_common_tasks.wdl
+curl "https://raw.githubusercontent.com/broadinstitute/gatk/${RELEASE}/scripts/cnv_wdl/somatic/cnv_somatic_panel_workflow.wdl" > ${WORK_DIR}cnv_somatic_panel_workflow.wdl
+curl "https://raw.githubusercontent.com/broadinstitute/gatk/${RELEASE}/scripts/cnv_wdl/somatic/cnv_somatic_oncotator_workflow.wdl" > ${WORK_DIR}cnv_somatic_oncotator_workflow.wdl
+curl "https://raw.githubusercontent.com/broadinstitute/gatk/${RELEASE}/scripts/cnv_wdl/somatic/cnv_somatic_pair_workflow.wdl" > ${WORK_DIR}cnv_somatic_pair_workflow.wdl
+
+cp ${EVAL_WDL_DIR}/* ${WORK_DIR}/.
+
+# Create the dependency zip
+ZIPNAME=${WORK_DIR}/eval_cnv_wgs_validation.zip
+rm -f ${ZIPNAME}
+echo "Creating zip..."
+zip -D -o -j ${ZIPNAME} ${WORK_DIR}cnv_common_tasks.wdl ${WORK_DIR}cnv_somatic_pair_workflow.wdl \
+ ${WORK_DIR}cnv_validation.wdl ${WORK_DIR}cnv_somatic_oncotator_workflow.wdl
+
+echo "Deploy into ${WORK_DIR} complete"
