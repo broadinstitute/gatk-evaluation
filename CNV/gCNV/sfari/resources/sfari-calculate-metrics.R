@@ -6,9 +6,9 @@
 ###
 ### It requires arguments in the following order:
 ###   args[1] - Path to the gCNV calls
-###   args[2] - Path to the filtered Picard interval list
+###   args[2] - Path to the filtered, annotated intervals TSV file
 ###   args[3] - Path to the truth bed file
-###   args[4] - Path to the TSV with columns (SFARI.ID, Sample.ID)
+###   args[4] - Path to the sample-ID map TSV with columns (SFARI.ID, Sample.ID)
 ###   args[5] - QS threshold
 ###   args[6] - Number of cores to use
 ###   args[7] - Output directory
@@ -22,11 +22,11 @@ if (length(args) != 7) {
 }
 
 gcnv_calls_path <- args[1]
-filtered_interval_list_file <- args[2]
+filtered_annotated_intervals_file <- args[2]
 truth_bed_file <- args[3]
 sample_id_map_file <- args[4]
-threshold_QS <- args[5]
-num_cores <- args[6]
+threshold_QS <- as.numeric(args[5])
+num_cores <- as.numeric(args[6])
 out_dir <- args[7]
 
 ################################################################################################################################################
@@ -73,7 +73,6 @@ extractCallsgCNV <- function(file){
         strand(out)[out$CN>2] <- "+"
     names(out) <- NULL
     
-    # out$sample <- str_replace(str_replace(file, "genotyped-segments-", ""), ".vcf.gz", "")
     out <- out[seqnames(out) %in% 1:22]
     return(out)
 }
@@ -183,33 +182,33 @@ performancePlot <- function(matrix_overall, matrix_del, matrix_dup, wids, label,
 ### Setting up necessary resources
 ##########################################################################################
 library(rtracklayer); library(VariantAnnotation); library(stringr)
-setwd(gcnv_calls_path)
-bins <- read.table(filtered_interval_list_file, comment.char="@", header=TRUE)
-    bins <- GRanges(bins[,1], IRanges(bins[,2], bins[,3]), gc=bins$GC_CONTENT, segdup=bins$SEGMENTAL_DUPLICATION_CONTENT)
-    bins <- bins[seqnames(bins) %in% 1:22]
-    bins <- bins[bins$segdup==0]
+
+bins <- read.table(filtered_annotated_intervals_file, comment.char="@", header=TRUE)
+bins <- GRanges(bins[,1], IRanges(bins[,2], bins[,3]), gc=bins$GC_CONTENT, segdup=bins$SEGMENTAL_DUPLICATION_CONTENT)
+bins <- bins[seqnames(bins) %in% 1:22]
+bins <- bins[bins$segdup==0]
 sample_id_map <- read.table(sample_id_map_file, header=TRUE)
 
 ##########################################################################################
 ### Determining which families have full quartests
 ##########################################################################################
-files <- list.files(gcnv_calls_path, pattern=".vcf.gz")
-    samples <- str_replace(str_replace(files, "genotyped-segments-", ""), ".vcf.gz", "")
-    ids <- as.character(sample_id_map$SFARI.ID[match(samples, sample_id_map$Sample.ID)])
+files <- list.files(gcnv_calls_path, pattern=".vcf.gz", full.names=TRUE)
+samples <- str_replace(str_replace(basename(files), "genotyped-segments-", ""), ".vcf.gz", "")
+ids <- as.character(sample_id_map$SFARI.ID[match(samples, sample_id_map$Sample.ID)])
 
 ################################################################################################################################################
 ### Parsing the truth callset and converting to bin-space
 ### There are many more samples in the table than the smaller exome set
 ##########################################################################################
 truth_full <- read.table(truth_bed_file)
-    truth_full <- truth_full[truth_full[,1] %in% c(1:22),]
-    truth_del <- truth_full[truth_full[,5]=="DEL",]
-    truth_dup <- truth_full[truth_full[,5]=="DUP",]
+truth_full <- truth_full[truth_full[,1] %in% c(1:22),]
+truth_del <- truth_full[truth_full[,5]=="DEL",]
+truth_dup <- truth_full[truth_full[,5]=="DUP",]
 
 calls_truth_del <- mclapply(ids, extractCallsTruth, truth_del, mc.cores=num_cores)
-    names(calls_truth_del) <- ids
+names(calls_truth_del) <- ids
 calls_truth_dup <- mclapply(ids, extractCallsTruth, truth_dup, mc.cores=num_cores)
-    names(calls_truth_dup) <- ids
+names(calls_truth_dup) <- ids
 
 bs_truth_del <- mclapply(calls_truth_del, toBinSpace, bins, mc.cores=num_cores)
 bs_truth_dup <- mclapply(calls_truth_dup, toBinSpace, bins, mc.cores=num_cores)
@@ -218,7 +217,7 @@ bs_truth_dup <- mclapply(calls_truth_dup, toBinSpace, bins, mc.cores=num_cores)
 ### Parsing the gCNV callset and converting to bin-space.
 ##########################################################################################
 calls_gcnv <- mclapply(files, extractCallsgCNV, mc.cores=num_cores)
-    names(calls_gcnv) <- ids
+names(calls_gcnv) <- ids
 calls_gcnv_bins <- mclapply(calls_gcnv, function(x){x$numBins=countOverlaps(x, bins); return(x)}, mc.cores=num_cores)
 
 calls_gcnv_del <- mclapply(calls_gcnv_bins, function(x) x[x$call=="DEL"], mc.cores=num_cores)
@@ -254,16 +253,16 @@ performance_dup <- calculatePerformance(rols_all[rols_all$var=="+",], threshold_
 threshold_ac <- 4
 threshold_ol <- 0.2
 ir_tots <- IRanges(rols_all[,4], rols_all[,5])
-    ir_parents <- ir_tots[stringr::str_detect(rols_all$sample, "(mo)|(fa)")]
+ir_parents <- ir_tots[stringr::str_detect(rols_all$sample, "(mo)|(fa)")]
 cluster_parents <- as.numeric(coverage(ir_tots))
-    filter_parents <- which(cluster_parents>=threshold_ac)
-    filter_wgs <- IRanges(filter_parents, filter_parents)
+filter_parents <- which(cluster_parents>=threshold_ac)
+filter_wgs <- IRanges(filter_parents, filter_parents)
 
 ir_gcnv <- IRanges(rols_all[,1], rols_all[,2])
-    ir_parents <- ir_gcnv[stringr::str_detect(rols_all$sample, "(mo)|(fa)")]
+ir_parents <- ir_gcnv[stringr::str_detect(rols_all$sample, "(mo)|(fa)")]
 cluster_parents <- as.numeric(coverage(ir_gcnv))
-    filter_parents <- which(cluster_parents>=threshold_ac)
-    filter_gcnv <- IRanges(filter_parents, filter_parents)
+filter_parents <- which(cluster_parents>=threshold_ac)
+filter_gcnv <- IRanges(filter_parents, filter_parents)
 
 col_wgs <- countOverlaps(ir_tots, filter_wgs)/width(ir_tots)
 col_gcnv <- countOverlaps(ir_gcnv, filter_gcnv)/width(ir_gcnv)
