@@ -13,7 +13,7 @@ workflow GermlineCNVSFARIEvaluation {
     String gatk_docker
 
     File sfari_calculate_metrics_script
-    Array[File]+ gcnv_vcf_gzs
+    Array[File]+ gcnv_calls_tars
     File filtered_intervals
     File truth_bed
     File sample_id_map
@@ -52,7 +52,7 @@ workflow GermlineCNVSFARIEvaluation {
     call CalculateMetrics {
         input:
             sfari_calculate_metrics_script = sfari_calculate_metrics_script,
-            gcnv_vcf_gzs = gcnv_vcf_gzs,
+            gcnv_calls_tars = gcnv_calls_tars,
             filtered_annotated_intervals = AnnotateIntervals.annotated_intervals,
             truth_bed = truth_bed,
             sample_id_map = sample_id_map,
@@ -69,7 +69,7 @@ workflow GermlineCNVSFARIEvaluation {
 task CalculateMetrics {
     File sfari_calculate_metrics_script
     
-    Array[File]+ gcnv_vcf_gzs
+    Array[File]+ gcnv_calls_tars
     File filtered_annotated_intervals
     File truth_bed
     File sample_id_map
@@ -93,9 +93,9 @@ task CalculateMetrics {
         
         # copy calls to calls directory
         mkdir calls
-        gcnv_vcf_gzs_array=(${sep=" " gcnv_vcf_gzs})
-        for gcnv_vcf_gz in ${dollar}{gcnv_vcf_gzs_array[@]}; do
-            cp $gcnv_vcf_gz calls
+        gcnv_calls_tars_array=(${sep=" " gcnv_calls_tars})
+        for gcnv_calls_tar in ${dollar}{gcnv_calls_tars_array[@]}; do
+            cp $gcnv_calls_tar calls
         done
 
         # run evaluation script

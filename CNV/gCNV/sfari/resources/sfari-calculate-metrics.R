@@ -233,11 +233,11 @@ rols_del <- mclapply(1:length(bs_gcnv_del), getROL, bs_gcnv_del, bs_truth_del, m
 rols_dup <- mclapply(1:length(bs_gcnv_dup), getROL, bs_gcnv_dup, bs_truth_dup, mc.cores=num_cores)
 
 rols_del <- do.call(rbind, rols_del)
-    rols_del$var <- "-"
+rols_del$var <- "-"
 rols_dup <- do.call(rbind, rols_dup)
-    rols_dup$var <- "+"
+rols_dup$var <- "+"
 rols_all <- rbind(rols_del, rols_dup)
-    rownames(rols_all) <- NULL
+rownames(rols_all) <- NULL
 wids_all <- data.frame(var_wid=end(bins)[rols_all[,2]]-start(bins)[rols_all[,1]], bins=rols_all$gcnv_wid[rols_all$gcnv_wid!=0])
 
 threshold_bin <- 1:25
