@@ -60,7 +60,7 @@ extractCallsTruth <- function(samp, truth_calls){
 extractCallsgCNV <- function(file){
     vcf <- readVcf(file)    
     out <- rowRanges(vcf)
-        end(out) <- info(vcf)$END
+    end(out) <- info(vcf)$END
     out$QA <- geno(vcf)$QA
     out$QS <- geno(vcf)$QS
     out$QSS <- geno(vcf)$QSS
@@ -68,9 +68,9 @@ extractCallsgCNV <- function(file){
     out$CN <- as.numeric(unlist(geno(vcf)$CN))
     out <- out[out$CN!=2]
     out$call <- "DEL"
-        out$call[out$CN>2] <- "DUP"
+    out$call[out$CN>2] <- "DUP"
     strand(out) <- "-"
-        strand(out)[out$CN>2] <- "+"
+    strand(out)[out$CN>2] <- "+"
     names(out) <- NULL
     
     out <- out[seqnames(out) %in% 1:22]
@@ -158,23 +158,23 @@ performancePlot <- function(matrix_overall, matrix_del, matrix_dup, wids, label,
     par(mar=rep(4,4))
     xs <- 1:dim(matrix_overall)[1]
     plot(x=c(0, dim(matrix_overall)[1]), y=c(0, 1), ty='n', pch='', xaxt='n', ylab = 'sensitivity', xlab = 'number of bins')
-        points(matrix_overall[,1]~xs, pch=19, cex=0.5)
-        points(matrix_del[,1]~xs, pch=19, col=2, cex=0.5)
-        points(matrix_dup[,1]~xs, pch=19, col=4, cex=0.5)
-        legend(20, y=0.2, pch=19, legend=c("Overall", "Dels", "Dups"), col=c(1, 2, 4))
-        axis(side=3, at=xs, labels=matrix_overall[,2], las=2)
-        axis(side=1, at=xs, labels=rownames(matrix_overall), las=2)
+    points(matrix_overall[,1]~xs, pch=19, cex=0.5)
+    points(matrix_del[,1]~xs, pch=19, col=2, cex=0.5)
+    points(matrix_dup[,1]~xs, pch=19, col=4, cex=0.5)
+    legend(20, y=0.2, pch=19, legend=c("Overall", "Dels", "Dups"), col=c(1, 2, 4))
+    axis(side=3, at=xs, labels=matrix_overall[,2], las=2)
+    axis(side=1, at=xs, labels=rownames(matrix_overall), las=2)
     plot(x=c(0, dim(matrix_overall)[1]), y=c(0, 1), ty='n', pch='', xaxt='n', ylab = 'ppv', xlab = 'number of bins', main="")
-        points(matrix_overall[,3]~xs, pch=19, cex=0.5)
-        points(matrix_del[,3]~xs, pch=19, col=2, cex=0.5)
-        points(matrix_dup[,3]~xs, pch=19, col=4, cex=0.5)
-        axis(side=3, at=xs, labels=matrix_overall[,4], las=2)
-        axis(side=1, at=xs, labels=rownames(matrix_overall), las=2)
+    points(matrix_overall[,3]~xs, pch=19, cex=0.5)
+    points(matrix_del[,3]~xs, pch=19, col=2, cex=0.5)
+    points(matrix_dup[,3]~xs, pch=19, col=4, cex=0.5)
+    axis(side=3, at=xs, labels=matrix_overall[,4], las=2)
+    axis(side=1, at=xs, labels=rownames(matrix_overall), las=2)
     wids_use <- wids
     wids_use[wids[,2]>(max(xs)-1),2] <- 26
     boxplot(log(wids_use[,1],10)~wids_use[,2], xlab="number of bins", ylab="log 10 variant size", main=label, xaxt="n")
-        axis(side=1, at=xs, labels=rownames(matrix_overall), las=2)
-        abline(h=4, col=2)
+    axis(side=1, at=xs, labels=rownames(matrix_overall), las=2)
+    abline(h=4, col=2)
     dev.off()
 }
 
