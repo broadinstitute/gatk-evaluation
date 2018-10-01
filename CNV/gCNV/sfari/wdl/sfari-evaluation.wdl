@@ -19,7 +19,6 @@ workflow GermlineCNVSFARIEvaluation {
     File truth_bed
     File sample_id_map
     Int threshold_QS
-    Int num_cores
     String gcnv_evaluation_docker
 
     ##################################
@@ -61,7 +60,6 @@ workflow GermlineCNVSFARIEvaluation {
             truth_bed = truth_bed,
             sample_id_map = sample_id_map,
             threshold_QS = threshold_QS,
-            num_cores = num_cores,
             gcnv_evaluation_docker = gcnv_evaluation_docker
     }
 
@@ -78,7 +76,6 @@ task CalculateMetrics {
     File truth_bed
     File sample_id_map
     Int threshold_QS
-    Int num_cores
 
     #Runtime parameters
     String gcnv_evaluation_docker
@@ -89,6 +86,7 @@ task CalculateMetrics {
     Int? preemptible_attempts
 
     Int machine_mem_mb = select_first([mem_gb, 2]) * 1000
+    Int num_cores = 1
 
     String dollar = "$" #WDL workaround for using array[@], see https://github.com/broadinstitute/cromwell/issues/1819
     
