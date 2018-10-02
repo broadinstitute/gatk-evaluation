@@ -45,7 +45,7 @@ WGS
 
 
 
-## How was the centromere file generated?
+## How was the centromere file generated (hg19)?
 
 Step 1 was to go to UCSC genome browser and download the appropriate tracks for the appropriate genome build (hg19 being used here).
 Table Browser
@@ -74,6 +74,42 @@ grep -Pv "\t[0-9XY]{1,2}\t0\t[0-9]+\t" tmp1a_$INPUT > tmp2_$INPUT
 sed -r "s/\tchrom\t/\tCONTIG\t/g" tmp2_$INPUT | sed -r "s/\tstart\t|\tStart_Position\t|\tchromStart\t/\tSTART\t/g" | \
  sed -r "s/\tend\t|\tEnd_Position\t|\tchromEnd\t/\tEND\t/g" | egrep "END|centromere" > $FINAL_SEG_FILE
 ```
+
+## How was the centromere file generated (hg38)?
+
+Step 1 was to go to UCSC genome browser and download the appropriate tracks for the appropriate genome build (hg38).
+Table Browser
+Group: Mapping and Sequencing | Track: Centromere | Output format of BED
+
+
+```bash
+# Generates the centromere file.
+# This script is not as reusable as you might think
+INPUT=centromeres_hg38.bed
+FINAL_SEG_FILE=final_centromere_hg38.seg
+HG38_DICT=/home/lichtens/broad_oncotator_configs/ref/hg38/Homo_sapiens_assembly38.dict
+set -e
+
+# Not doing XY
+grep -Pv "\tchrUn_|chrX|chrY|chr[0-9]+_gl" $INPUT > tmp1_$INPUT
+
+# Remove the segments that start with zero.  
+grep -Pv "\t[0-9XY]{1,2}\t0\t[0-9]+\t" tmp1_$INPUT > tmp2_$INPUT
+
+# sort bed 
+sort -k 1.4,1n -k 2,2n -k 3,3n tmp2_$INPUT > tmp2a_$INPUT
+
+# Add header
+cat $HG38_DICT >tmp3_$INPUT
+echo -e "CONTIG\tSTART\tEND\ttype" >>tmp3_$INPUT
+cat tmp2a_$INPUT >>tmp3_$INPUT
+
+# alter the names:  E.g. GJ211954.1  --> "centromere"
+sed -r "s/\tGJ[0-9]+\.[0-9]+/\tcentromere/g" tmp3_$INPUT  > $FINAL_SEG_FILE
+
+
+```
+
 
 ## Example json file 
 
