@@ -113,4 +113,59 @@ sed -r "s/\tGJ[0-9]+\.[0-9]+/\tcentromere/g" tmp3_$INPUT  > $FINAL_SEG_FILE
 
 ## Example json file 
 
-See `multi_cnv_validation.wdl` in the wdl directory for a working example.
+See `multi_cnv_validation.json` in the wdl directory for a working example.
+
+
+## Converting GATK seg file into interval list
+
+```bash
+
+INPUT_FILE=CNV.hg19.bypos.v1.CR1_event_added.mod.seg
+OUTPUT_FILE=CNV.hg38liftover.bypos.v1.CR1_event_added.mod.seg
+
+# ftp://gsapubftp-anonymous@ftp.broadinstitute.org/Liftover_Chain_Files/
+B37TOHG19CHAIN=b37tohg19.chain
+
+CHAIN_FILE=hg19ToHg38.over.chain
+GATK_JAR=/home/lichtens/IdeaProjects/gatk/build/libs/gatk.jar
+TARGET_REF1=ucsc.hg19.dict
+TARGET_REF2=/home/lichtens/broad_oncotator_configs/ref/hg38/Homo_sapiens_assembly38.dict
+
+
+
+# WARNING -- this script will drop some of the files in the original input file.
+
+
+# First we save the CNV file as an interval_list
+egrep "^\@" ${INPUT_FILE} > tmp_old_dict
+cut -f1-4 ${INPUT_FILE} | egrep -v "^\@|CONTIG" >tmp1_$INPUT_FILE
+awk '{ print $2 "\t" $3 "\t" $4 "\t+\t" $1}' tmp1_$INPUT_FILE > tmp1a_$INPUT_FILE
+egrep CONTIG ${INPUT_FILE} | awk '{ print $2 "\t" $3 "\t" $4 "\t" $1}' > new_header
+cat tmp_old_dict > ${INPUT_FILE}.interval_list
+cat tmp1a_$INPUT_FILE >> ${INPUT_FILE}.interval_list
+
+
+# Liftover the interval list (twice -- once b37->hg19, then hg19->hg38)
+java -jar ${GATK_JAR} LiftOverIntervalList \
+-I ${INPUT_FILE}.interval_list \
+-O tmp_${INPUT_FILE}.hg19.interval_list \
+-SD ${TARGET_REF1} \
+-CHAIN ${B37TOHG19CHAIN}
+
+java -jar ${GATK_JAR} LiftOverIntervalList \
+-I tmp_${INPUT_FILE}.hg19.interval_list \
+-O tmp_${OUTPUT_FILE}.hg38.interval_list \
+-SD ${TARGET_REF2} \
+-CHAIN ${CHAIN_FILE}
+
+egrep "^@" tmp_${OUTPUT_FILE}.hg38.interval_list > ${OUTPUT_FILE}
+cat new_header >> ${OUTPUT_FILE}
+egrep -v "^@" tmp_${OUTPUT_FILE}.hg38.interval_list  >> ${OUTPUT_FILE}
+
+
+echo "Entries in the input file:"
+egrep -v "^@" ${INPUT_FILE} | wc -l
+
+echo "Entries in the output file:"
+egrep -v "^@" ${OUTPUT_FILE} | wc -l
+```
