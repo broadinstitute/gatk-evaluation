@@ -40,7 +40,8 @@ workflow MultiCNVValidation {
     Array[String] wgs_columns_of_interest_or_default = select_first([wgs_columns_of_interest, [
         "final_total_cn", "final_major_cn", "final_minor_cn", "consensus_total_cn", "consensus_major_cn", "consensus_minor_cn",
         "star", "level", "absolute_broad_major_cn", "absolute_broad_minor_cn", "battenberg_major_cn", "battenberg_minor_cn", "sclust_major_cn", "sclust_minor_cn",
-        "LOG2_COPY_RATIO_POSTERIOR_50", "LOG2_COPY_RATIO_POSTERIOR_10", "LOG2_COPY_RATIO_POSTERIOR_90"
+        "LOG2_COPY_RATIO_POSTERIOR_50", "LOG2_COPY_RATIO_POSTERIOR_10", "LOG2_COPY_RATIO_POSTERIOR_90",
+        "MINOR_ALLELE_FRACTION_POSTERIOR_10", "MINOR_ALLELE_FRACTION_POSTERIOR_50", "MINOR_ALLELE_FRACTION_POSTERIOR_90"
     ]])
     Array[String] wgs_columns_of_interest_seg_calls_or_default = select_first([wgs_columns_of_interest_seg_calls, [
         "final_total_cn", "final_major_cn", "final_minor_cn", "consensus_total_cn", "consensus_major_cn", "consensus_minor_cn",

@@ -10,6 +10,8 @@ START_COL = "START"
 END_COL = "END"
 LOG2_COPY_RATIO_POSTERIOR_90_COL = "LOG2_COPY_RATIO_POSTERIOR_90"
 LOG2_COPY_RATIO_POSTERIOR_10_COL = "LOG2_COPY_RATIO_POSTERIOR_10"
+MAF_90_COL = "MINOR_ALLELE_FRACTION_POSTERIOR_90"
+MAF_10_COL = "MINOR_ALLELE_FRACTION_POSTERIOR_10"
 LARGE_EVENT_TYPE_COL = "type"
 NUM_BASES_COL = "num_bases"
 POSSIBLE_GERMLINE_COL = "POSSIBLE_GERMLINE"
@@ -46,9 +48,12 @@ import pandas
 from sklearn.metrics import mean_absolute_error as mae
 
 CR_GUESS_COLUMN = "LOG2_COPY_RATIO_POSTERIOR_50"
+MAF_COLUMN = "MINOR_ALLELE_FRACTION_POSTERIOR_50"
 PURITY_PLOIDY_FILENAME = "consensus.20170217.purity.ploidy.txt"
 UUID_BARCODE_FILE = "UUID-BARCODE.tsv"
 GT_CN_COLUMN_NAME = "final_total_cn"
+GT_MAJOR_CN_COLUMN_NAME = "final_major_cn"
+GT_MINOR_CN_COLUMN_NAME = "final_minor_cn"
 GT_CR_COLUMN_NAME = GT_CN_COLUMN_NAME.replace("cn", "cr")
 MIN_SEGMENT_LENGTH_BP = 0
 MIN_STARS = 2.5
@@ -175,12 +180,16 @@ def create_segments_df_for_comparison(input_tsv, purity, ploidy):
     cr = 2 ** segs_df[CR_GUESS_COLUMN]
     cr10 = 2 ** segs_df[LOG2_COPY_RATIO_POSTERIOR_10_COL]
     cr90 = 2 ** segs_df[LOG2_COPY_RATIO_POSTERIOR_90_COL]
+    maf_gt = segs_df[GT_MINOR_CN_COLUMN_NAME]/segs_df[GT_CN_COLUMN_NAME]
+    maf = segs_df[MAF_COLUMN]
+    maf_10 = segs_df[MAF_10_COL]
+    maf_90 = segs_df[MAF_90_COL]
     weight = segs_df[END_COL] - segs_df[START_COL]
     weight.rename(NUM_BASES_COL, inplace=True)
 
     # TODO: Get rid of this next statement, since it will cut additional columns that are added in later veresions
     comparison = pandas.concat([segs_df[CONTIG_COL], segs_df[START_COL], segs_df[END_COL], cr_gt, cr, weight, segs_df[STAR_COL],
-                                cr10, cr90, segs_df[POSSIBLE_GERMLINE_COL], segs_df[LARGE_EVENT_TYPE_COL]], axis=1)
+                                cr10, cr90, segs_df[POSSIBLE_GERMLINE_COL], segs_df[LARGE_EVENT_TYPE_COL], maf, maf_gt, maf_10, maf_90], axis=1)
     comparison_pruned = comparison[~(((comparison[CR_GUESS_COLUMN] < 1.1) & (comparison[CR_GUESS_COLUMN] > 0.9)) &
                                ((comparison[GT_CR_COLUMN_NAME] < 1.1) & (comparison[GT_CR_COLUMN_NAME] > 0.9)))]
 
