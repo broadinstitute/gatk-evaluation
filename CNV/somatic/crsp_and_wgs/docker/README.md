@@ -116,7 +116,7 @@ sed -r "s/\tGJ[0-9]+\.[0-9]+/\tcentromere/g" tmp3_$INPUT  > $FINAL_SEG_FILE
 See `multi_cnv_validation.json` in the wdl directory for a working example.
 
 
-## Converting GATK seg file into interval list
+## Converting GATK seg file (b37) into interval list and lifting over to hg38
 
 ```bash
 
@@ -127,11 +127,9 @@ OUTPUT_FILE=CNV.hg38liftover.bypos.v1.CR1_event_added.mod.seg
 B37TOHG19CHAIN=b37tohg19.chain
 
 CHAIN_FILE=hg19ToHg38.over.chain
-GATK_JAR=/home/lichtens/IdeaProjects/gatk/build/libs/gatk.jar
+GATK_JAR=gatk.jar
 TARGET_REF1=ucsc.hg19.dict
-TARGET_REF2=/home/lichtens/broad_oncotator_configs/ref/hg38/Homo_sapiens_assembly38.dict
-
-
+TARGET_REF2=Homo_sapiens_assembly38.dict
 
 # WARNING -- this script will drop some of the files in the original input file.
 
