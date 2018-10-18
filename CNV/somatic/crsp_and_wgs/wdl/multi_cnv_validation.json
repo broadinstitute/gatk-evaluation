@@ -24,7 +24,7 @@
 ],
  "MultiCNVValidation.common_sites": "gs://broad-dsde-methods-th/allchr.1kg.phase3.v5a.snp.maf10.biallelic.recode.fixed.prune5.interval_list",
  "MultiCNVValidation.eval_docker": "us.gcr.io/broad-dsde-methods/gatk-evaluation/cnv_somatic_1p5:crsp_and_wgs_1.1",
- "MultiCNVValidation.gatk_docker": "us.gcr.io/broad-gatk/gatk:4.0.7.0",
+ "MultiCNVValidation.gatk_docker": "us.gcr.io/broad-gatk/gatk:4.0.10.1",
  "MultiCNVValidation.group_id": "Evaluation_CNV_1.5",
  "MultiCNVValidation.ice_intervals": "gs://broad-dsde-methods-th/target/ice_targets.tsv.interval_list",
  "MultiCNVValidation.ice_read_count_pon": "gs://broad-dsde-methods-lichtens/cromwell-executions-test-dl-oxoq-full/CNVSomaticPanelWorkflow/85264ec6-88ae-4be7-99c0-0e9aacf98d49/call-CreateReadCountPanelOfNormals/PoN_ICE_GATK4.0_300samples.pon.hdf5",
