@@ -1,5 +1,5 @@
 import "cnv_somatic_pair_workflow.wdl" as CNVSomaticPairWorkflow
-
+import "combine_tracks.wdl" as CNVPostProcessing
 workflow CNVValidation {
 
     ### CNV parameters
@@ -19,6 +19,11 @@ workflow CNVValidation {
     Int? bin_length
 
     File? gatk4_jar_override_evaluation
+
+    File centromere_tracks_seg
+    File gistic_blacklist_tracks_seg
+    Int? germline_tagging_padding
+    Int? max_merge_distance
 
     ### Validation parameters
     Array[String] columns_of_interest
@@ -53,6 +58,25 @@ workflow CNVValidation {
             calling_copy_ratio_z_score_threshold = calling_copy_ratio_z_score_threshold
     }
 
+    call CNVPostProcessing.CombineTracksWorkflow as CombineTracksWorkflow {
+        input:
+            tumor_called_seg = cnvPair.called_copy_ratio_segments_tumor,
+            tumor_modeled_seg = cnvPair.modeled_segments_tumor,
+            af_param = cnvPair.allele_fraction_parameters_tumor,
+            matched_normal_called_seg = select_first([cnvPair.called_copy_ratio_segments_normal, "null"]),
+            ref_fasta = ref_fasta,
+            ref_fasta_dict = ref_fasta_dict,
+            ref_fasta_fai = ref_fasta_fai,
+            centromere_tracks_seg = centromere_tracks_seg,
+            gistic_blacklist_tracks_seg = gistic_blacklist_tracks_seg,
+            gatk4_jar_override = gatk4_jar_override,
+            columns_of_interest = ["CALL", "NUM_POINTS_COPY_RATIO", "type", "POSSIBLE_GERMLINE", "MEAN_LOG2_COPY_RATIO"],
+            germline_tagging_padding = germline_tagging_padding,
+            group_id = basename(tumor_bam),
+            gatk_docker = gatk_docker,
+            max_merge_distance = max_merge_distance
+    }
+
     call FixGtSegFile {
         input:
             seg_file = gt_seg_file
@@ -60,7 +84,7 @@ workflow CNVValidation {
 
     call CombineSegmentBreakpoints {
         input:
-            seg_files = [cnvPair.modeled_segments_tumor, FixGtSegFile.cleaned_seg_file],
+            seg_files = [CombineTracksWorkflow.cnv_postprocessing_tumor_with_tracks_filtered_merged_seg, FixGtSegFile.cleaned_seg_file],
             labels = [basename(tumor_bam), "gt_seg_file"],
             columns_of_interest = columns_of_interest,
             gatk4_jar_override = gatk4_jar_override_evaluation,
@@ -73,7 +97,7 @@ workflow CNVValidation {
 
     call CombineSegmentBreakpoints as CombineSegmentBreakpointsCRCalls {
         input:
-            seg_files = [cnvPair.called_copy_ratio_segments_tumor, FixGtSegFile.cleaned_seg_file],
+            seg_files = [CombineTracksWorkflow.cnv_postprocessing_tumor_with_tracks_filtered_merged_seg, FixGtSegFile.cleaned_seg_file],
             labels = [basename(tumor_bam), "gt_seg_file"],
             columns_of_interest = columns_of_interest_seg_calls,
             gatk4_jar_override = gatk4_jar_override_evaluation,
