@@ -130,7 +130,7 @@ workflow MultiCNVValidation {
                 ref_fasta = ref_fasta,
                 ref_fasta_dict = ref_fasta_dict,
                 ref_fasta_fai = ref_fasta_fai,
-                eval_docker = eval_docker
+                eval_docker = gatk_docker
         }
     }
 
@@ -206,7 +206,7 @@ workflow MultiCNVValidation {
                 ref_fasta_fai = ref_fasta_fai,
                 intervals = ice_intervals,
                 gatk4_jar_override = gatk4_jar_override_evaluation,
-                eval_docker = eval_docker
+                eval_docker = gatk_docker
         }
     }
 
