@@ -89,6 +89,8 @@ workflow MultiCNVValidation {
     Array[File] clinical_seg_gts
     #####
 
+    File centromere_track
+
     # SM-74P4M and SM-74NF5
     Array[Int] reproducibility_indexes = [5, 10]
     Int index1 = reproducibility_indexes[0]
@@ -130,7 +132,8 @@ workflow MultiCNVValidation {
                 ref_fasta = ref_fasta,
                 ref_fasta_dict = ref_fasta_dict,
                 ref_fasta_fai = ref_fasta_fai,
-                eval_docker = gatk_docker
+                gatk_docker = gatk_docker,
+                centromere_track = centromere_track
         }
     }
 
@@ -217,16 +220,27 @@ workflow MultiCNVValidation {
             eval_docker = eval_docker
     }
 
-    call ReproducibilityValidation {
+    call ReproducibilityValidationPrep {
         input:
             called_segs_1 = cnvValidationPurity.combined_seg_cr_calls_file[index1],
             called_segs_2 = cnvValidationPurity.combined_seg_cr_calls_file[index2],
             group_id = group_id_final,
             targets_file = cnvValidationPurity.denoised_copy_ratios_tumor[index1],
-            gatk4_jar_override  = gatk4_jar_override_evaluation,
+            gatk4_jar_override  = gatk4_jar_override,
             ref_fasta = ref_fasta,
             ref_fasta_dict = ref_fasta_dict,
             ref_fasta_fai = ref_fasta_fai,
+            gatk_docker = gatk_docker
+    }
+
+    call ReproducibilityValidation {
+        input:
+            called_segs_1 = cnvValidationPurity.combined_seg_cr_calls_file[index1],
+            called_segs_2 = cnvValidationPurity.combined_seg_cr_calls_file[index2],
+            reproducibility_targets = ReproducibilityValidationPrep.reproducibility_targets,
+            group_id = group_id_final,
+            targets_file = cnvValidationPurity.denoised_copy_ratios_tumor[index1],
+            gatk4_jar_override  = gatk4_jar_override_evaluation,
             eval_docker = eval_docker
     }
 
@@ -257,7 +271,8 @@ task CombineTracks {
     File ref_fasta
     File ref_fasta_dict
     File ref_fasta_fai
-    String eval_docker
+    String gatk_docker
+    File centromere_track
 
     String output_name = basename(combined_seg)
 
@@ -272,7 +287,7 @@ task CombineTracks {
 
     echo "======= Centromeres "
     java -jar ${default="/root/gatk.jar" gatk4_jar_override} CombineSegmentBreakpoints \
-            --segments ${output_name}.combined.germline_tagged.seg --segments /root/final_centromere_hg19.seg  \
+            --segments ${output_name}.combined.germline_tagged.seg --segments ${centromere_track}  \
             --columns-of-interest LOG2_COPY_RATIO_POSTERIOR_10 \
             --columns-of-interest LOG2_COPY_RATIO_POSTERIOR_50 --columns-of-interest LOG2_COPY_RATIO_POSTERIOR_90 \
             --columns-of-interest absolute_broad_major_cn --columns-of-interest absolute_broad_minor_cn --columns-of-interest battenberg_major_cn \
@@ -285,7 +300,7 @@ task CombineTracks {
     >>>
 
     runtime {
-        docker: "${eval_docker}"
+        docker: "${gatk_docker}"
         memory: "1 GB"
         disks: "local-disk 100 HDD"
         preemptible: 2
@@ -355,24 +370,17 @@ task PurityValidation {
     }
 }
 
-task ReproducibilityValidation {
+task ReproducibilityValidationPrep {
     File called_segs_1
     File called_segs_2
     String group_id
-    String eval_docker
+    String gatk_docker
     File targets_file
     File? gatk4_jar_override
     File ref_fasta
     File ref_fasta_dict
     File ref_fasta_fai
 
-    # This should be a optional, but cromwell 30 croaks.
-    Float ploidy = 3.7
-
-    String base_targets_file = basename(targets_file)
-    String sample1_name = basename(called_segs_1)
-    String sample2_name = basename(called_segs_2)
-    Boolean is_cr = false
     command <<<
         set -e
         # TODO: We need runtime parameters
@@ -387,14 +395,46 @@ task ReproducibilityValidation {
 
         java -Xmx4g -jar ${default="/root/gatk.jar" gatk4_jar_override} CombineSegmentBreakpoints \
             --segments reproducibility.tsv.seg --segments targets_file.seg  \
-			--columns-of-interest CALL_1 --columns-of-interest CALL_2 --columns-of-interest MEAN_LOG2_COPY_RATIO_1 --columns-of-interest MEAN_LOG2_COPY_RATIO_2 --columns-of-interest LOG2_COPY_RATIO \
+			--columns-of-interest CALL_1 --columns-of-interest CALL_2 --columns-of-interest MEAN_LOG2_COPY_RATIO_1 \
+			--columns-of-interest MEAN_LOG2_COPY_RATIO_2 --columns-of-interest LOG2_COPY_RATIO \
             -O reproducibility_targets_tmp.tsv.seg -R ${ref_fasta}
 
         egrep -v "^\@" reproducibility_targets_tmp.tsv.seg > ${group_id}_reproducibility_targets.seg
+    >>>
+
+    runtime {
+        docker: "${gatk_docker}"
+        memory: "4 GB"
+        disks: "local-disk 100 HDD"
+        preemptible: 2
+    }
+
+    output {
+        File reproducibility_targets = "${group_id}_reproducibility_targets.seg"
+    }
+}
+
+task ReproducibilityValidation {
+    File called_segs_1
+    File called_segs_2
+    File reproducibility_targets
+    String group_id
+    String eval_docker
+    File targets_file
+    File? gatk4_jar_override
+
+    # This should be a optional, but cromwell 30 croaks.
+    Float ploidy = 3.7
+
+    String sample1_name = basename(called_segs_1)
+    String sample2_name = basename(called_segs_2)
+    Boolean is_cr = false
+    command <<<
+        set -e
 
         echo "Plotting...."
         python /root/run_plot_reproducibility.py \
-            ${group_id}_reproducibility_targets.seg \
+            ${reproducibility_targets} \
             ${sample1_name} \
             ${sample2_name} \
             ${group_id}/reproducibility/ \
@@ -413,7 +453,6 @@ task ReproducibilityValidation {
 
     output {
         File final_reproducibility_validation_tar_gz = "${group_id}_reproducibility.tar.gz"
-        File plot_reproducibility_input_file = "${group_id}_reproducibility_targets.seg"
     }
 }
 

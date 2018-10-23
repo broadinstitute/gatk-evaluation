@@ -1,5 +1,6 @@
 {
  "MultiCNVValidation.calling_copy_ratio_z_score_threshold": 3.05,
+ "MultiCNVValidation.centromere_track": "gs://gatk-best-practices/somatic-b37/final_centromere_hg19.seg",
  "MultiCNVValidation.clinical_seg_gts": [
 "gs://broad-dsde-methods-test-data/crsp-private-gt-seg-files/header_and_merge_fixed/TCGA-FG-A4MU-01B-11D-A288-01.seg.txt.headers.merged.txt",
 "gs://broad-dsde-methods-test-data/crsp-private-gt-seg-files/header_and_merge_fixed/TCGA-HT-A5RC-01A-11D-A288-01.seg.txt.headers.merged.txt",
