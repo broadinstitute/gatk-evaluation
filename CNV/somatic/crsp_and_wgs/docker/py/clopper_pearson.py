@@ -11,9 +11,9 @@ def clopper_pearson(k, n, alpha=0.05):
     Clopper Pearson intervals are a conservative estimate.
     """
     lo = scipy.stats.beta.ppf(alpha / 2, k, n - k + 1)
+    if np.isnan(lo):
+        lo = 0.0
     hi = scipy.stats.beta.ppf(1 - alpha / 2, k + 1, n - k)
     if (n - k) == 0:
         return lo, 1.0
-    if np.isnan(lo):
-        lo = 0.0
     return lo, hi

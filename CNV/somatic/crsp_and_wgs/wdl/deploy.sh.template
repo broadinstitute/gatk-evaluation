@@ -42,6 +42,6 @@ ZIPNAME=${WORK_DIR}/eval_cnv_wgs_validation.zip
 rm -f ${ZIPNAME}
 echo "Creating zip..."
 zip -D -o -j ${ZIPNAME} ${WORK_DIR}cnv_common_tasks.wdl ${WORK_DIR}cnv_somatic_pair_workflow.wdl \
- ${WORK_DIR}cnv_validation.wdl ${WORK_DIR}cnv_somatic_oncotator_workflow.wdl
+ ${WORK_DIR}cnv_validation.wdl ${WORK_DIR}cnv_somatic_oncotator_workflow.wdl  ${WORK_DIR}combine_tracks.wdl
 
 echo "Deploy into ${WORK_DIR} complete"

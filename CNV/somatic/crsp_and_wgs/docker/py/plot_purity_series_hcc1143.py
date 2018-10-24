@@ -228,7 +228,12 @@ def run_purity_plotting(input_tsvs, output_dir):
 
         fp_del = segs_gt_to_consider[
             (segs_gt_to_consider["CALL"] == "-") & (segs_gt_to_consider[GT_CN_COLUMN_NAME] > 2)]
-        prec_dels = float(len(tp_del)) / float(len(tp_del) + len(fp_del))
+
+        if (len(tp_del) + len(fp_del)) == 0:
+            prec_dels = 1.0
+        else:
+            prec_dels = float(len(tp_del)) / float(len(tp_del) + len(fp_del))
+
         prec_dels_ci = clopper_pearson(len(tp_del), (len(tp_del) + len(fp_del)))
         prec_dels_N = len(tp_del) + len(fp_del)
 

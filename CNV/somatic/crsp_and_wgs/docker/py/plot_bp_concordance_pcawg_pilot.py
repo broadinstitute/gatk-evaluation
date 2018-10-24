@@ -10,9 +10,7 @@ START_COL = "START"
 END_COL = "END"
 LOG2_COPY_RATIO_POSTERIOR_90_COL = "LOG2_COPY_RATIO_POSTERIOR_90"
 LOG2_COPY_RATIO_POSTERIOR_10_COL = "LOG2_COPY_RATIO_POSTERIOR_10"
-LARGE_EVENT_TYPE_COL = "type"
 NUM_BASES_COL = "num_bases"
-POSSIBLE_GERMLINE_COL = "POSSIBLE_GERMLINE"
 
 STAR_COL = "star"
 
@@ -180,7 +178,7 @@ def create_segments_df_for_comparison(input_tsv, purity, ploidy):
 
     # TODO: Get rid of this next statement, since it will cut additional columns that are added in later veresions
     comparison = pandas.concat([segs_df[CONTIG_COL], segs_df[START_COL], segs_df[END_COL], cr_gt, cr, weight, segs_df[STAR_COL],
-                                cr10, cr90, segs_df[POSSIBLE_GERMLINE_COL], segs_df[LARGE_EVENT_TYPE_COL]], axis=1)
+                                cr10, cr90], axis=1)
     comparison_pruned = comparison[~(((comparison[CR_GUESS_COLUMN] < 1.1) & (comparison[CR_GUESS_COLUMN] > 0.9)) &
                                ((comparison[GT_CR_COLUMN_NAME] < 1.1) & (comparison[GT_CR_COLUMN_NAME] > 0.9)))]
 
@@ -191,28 +189,6 @@ def create_segments_df_for_comparison(input_tsv, purity, ploidy):
     print("Removing segments that are less than minimum  of " + str(MIN_SEGMENT_LENGTH_BP) + " bp")
 
     return comparison_pruned
-
-
-def create_segments_df_for_comparison_germline_removed(segments_df):
-    # type: (DataFrame) -> (DataFrame)
-    """
-    Prune the segments tagged as possible germline.  I.e. the POSSIBLE_GERMLINE column is non-zero.
-
-    :param segments_df: DataFrame with the POSSIBLE_GERMLINE column
-    :return: DataFrame
-    """
-    comparison_edit_germline_removed = segments_df
-
-    # Remove centromeres
-    comparison_edit_germline_removed = comparison_edit_germline_removed[
-        (comparison_edit_germline_removed["type"].isnull())]
-
-    # Remove possible germline events
-    comparison_edit_germline_removed = comparison_edit_germline_removed[
-        (comparison_edit_germline_removed[POSSIBLE_GERMLINE_COL] == "0")]
-
-    return comparison_edit_germline_removed
-
 
 def parse_options():
     epilog = """ This tool will create plots of the concordance with PCAWG pilot ground truth files. This tool is very fussy about the incoming data being in its expected format.
@@ -259,12 +235,6 @@ if __name__ == '__main__':
         print("Copy neutral region not considered.")
         print("Total number of bases (in Mbp): " + str((comparison_edit[NUM_BASES_COL].astype('float') / 1e6).sum()))
 
-        comparison_edit_germline_removed = create_segments_df_for_comparison_germline_removed(comparison_edit)
-
-        print("Removing common CNV segments, centromeres, and segDupeSegments.")
-        print("   Proportion of bases remaining: " + str(float(comparison_edit_germline_removed[NUM_BASES_COL].sum()) / float(comparison_edit[
-                                                                                                                          NUM_BASES_COL].sum())))
-        print("Total number of bases remaining (in Mbp): " + str((comparison_edit_germline_removed[NUM_BASES_COL].astype('float') / 1e6).sum()))
         print("Median length of segment (breakpoints merged with ground truth): " + str(comparison_edit[
                                                                                             NUM_BASES_COL].median()))
         print("Threshold (min) length of segment (breakpoints merged with ground truth): " + str(MIN_SEGMENT_LENGTH_BP))
@@ -272,45 +242,29 @@ if __name__ == '__main__':
         sample_file = os.path.splitext(os.path.basename(input_tsv))[0]
 
         comparison_edit.to_csv(output_dir + os.path.basename(input_tsv) + "_comparison_edit.txt", sep="\t")
-        comparison_edit_germline_removed.to_csv(output_dir + os.path.basename(input_tsv) + "_comparison_edit_germline_removed.txt", sep="\t")
 
         distance_success = 0.1
-        distance_df = abs(comparison_edit_germline_removed[CR_GUESS_COLUMN] - comparison_edit_germline_removed[GT_CR_COLUMN_NAME])
-        comparison_edit_germline_removed_success = comparison_edit_germline_removed[distance_df < distance_success]
 
         distance_all_df = abs(comparison_edit[CR_GUESS_COLUMN] - comparison_edit[GT_CR_COLUMN_NAME])
-        comparison_edit_success = comparison_edit_germline_removed[distance_all_df < distance_success]
-
-        success_bp = comparison_edit_germline_removed_success[NUM_BASES_COL].sum()
-        all_bp = comparison_edit_germline_removed[NUM_BASES_COL].sum()
-        print(str(success_bp))
-        print(str(all_bp))
-        print("Proportion of bp within " + str(distance_success) + ": " + str(float(success_bp)/float(all_bp)))
+        comparison_edit_success = comparison_edit[distance_all_df < distance_success]
 
         success_bp_all = comparison_edit_success[NUM_BASES_COL].sum()
         all_bp_all = comparison_edit[NUM_BASES_COL].sum()
-        print("With germline events unfiltered... Proportion of bp within " + str(distance_success) + ": " + str(float(success_bp_all)/float(all_bp_all)))
+        print("Proportion of bp within " + str(distance_success) + ": " + str(float(success_bp_all)/float(all_bp_all)))
 
         line_dict = {FINAL_RESULTS_SAMPLE_COL: sample_file, FINAL_RESULTS_PURITY_COL: purity,
                      FINAL_RESULTS_PLOIDY_COL: ploidy, FINAL_RESULTS_DISTANCE_SUCCESS_COL: distance_success,
                      FINAL_RESULTS_PROP_SUCCESS_COL: float(success_bp_all) / float(all_bp_all),
-                     FINAL_RESULTS_PROP_SUCCESS_NO_GERMLINE_COL: float(success_bp) / float(all_bp),
                      FINAL_RESULTS_BASES_EVALUATED_COL: all_bp_all,
-                     FINAL_RESULTS_BASES_EVALUATED_NO_GERMLINE_COL: all_bp,
                      FINAL_RESULTS_MAE_COL: round(calculate_mae_with_weights(comparison_edit), 3),
-                     FINAL_RESULTS_MAE_NO_GERMLINE_COL: round(calculate_mae_with_weights(comparison_edit_germline_removed), 3),
                      FINAL_RESULTS_STARS_COL: ",".join(comparison_edit[STAR_COL].unique().astype('str').tolist())}
         final_results_df = final_results_df.append(Series(name=sample_file, data=line_dict))
 
-        other_lines_unfiltered = ["Proportion of bp w/in CR of " + str(distance_success) + ": " + str(float(success_bp_all)/float(all_bp_all)),
+        other_lines = ["Proportion of bp w/in CR of " + str(distance_success) + ": " + str(float(success_bp_all)/float(all_bp_all)),
                                   "Total bp: " + str(all_bp_all)]
-        other_lines_filtered = ["Proportion of bp w/in CR of " + str(distance_success) + ": " + str(float(success_bp)/float(all_bp)),
-                                "Total bp: " + str(all_bp)]
 
-        plot_bp_seg_concordance(output_dir, comparison_edit, short_name=sample_file + "Germline_Unfiltered_bp_concordance",
-                                title_plot="Concordance Germline Unfiltered", other_lines_for_title=other_lines_unfiltered)
-        plot_bp_seg_concordance(output_dir, comparison_edit_germline_removed, short_name=sample_file + "Germline_Filtered_bp_concordance",
-                                title_plot="Concordance Germline Filtered", other_lines_for_title=other_lines_filtered)
+        plot_bp_seg_concordance(output_dir, comparison_edit, short_name=sample_file + "_bp_concordance",
+                                title_plot="Concordance", other_lines_for_title=other_lines)
 
     final_results_filename = output_dir + "final_results.txt"
     print("Writing final results: " + final_results_filename)

@@ -181,12 +181,9 @@ def main():
     clinical_amp_plots = glob(clinical_plots_dir + "/clinical_Amp*target*.png")
     clinical_del_plots = glob(clinical_plots_dir + "/clinical_Del*target*.png")
     reproducibility_plots = glob(reproducibility_plots_dir + "/reproducibility_*.png")
-    bp_concordance_filtered_plots = sorted(glob(bp_concordance_dir + "/*seg*_Filtered_*bp.png"))
-    bp_concordance_unfiltered_plots = sorted(glob(bp_concordance_dir + "/*seg*_Unfiltered_*bp.png"))
+    bp_concordance_filtered_plots = sorted(glob(bp_concordance_dir + "/*bp_concordance*.png"))
     bp_concordance_input_files = [".".join(os.path.basename(p).split(".")[0:2]) for p in bp_concordance_filtered_plots]
-    bp_concordance_raw_data_files_germline_removed = glob(bp_concordance_dir + "/*.seg_comparison_edit_germline_removed.txt")
     bp_concordance_raw_data_files = glob(bp_concordance_dir + "/*.seg_comparison_edit.txt")
-    zip_bp_concordance_plots = zip(bp_concordance_filtered_plots, bp_concordance_unfiltered_plots)
 
     # https://pandas.pydata.org/pandas-docs/stable/style.html
 
@@ -210,7 +207,7 @@ def main():
                     "clinical_amp_plots": clinical_amp_plots,
                     "clinical_del_plots": clinical_del_plots,
                     "zip_clinical_plots": zip(clinical_amp_plots, clinical_del_plots),
-                    "zip_bp_concordance_plots": zip_bp_concordance_plots,
+                    "bp_concordance_plots": bp_concordance_filtered_plots,
                     "bp_concordance_mad_germline_filtered_threshold": str(mae_threshold),
                     "bp_concordance_summary": bp_concordance_summary.style.set_table_styles([
                         {'selector': 'td', 'props': [
@@ -224,13 +221,12 @@ def main():
                         .apply(color_row_value_above, axis=None, index_name='mae_no_germline', val=mae_threshold, color='#f99')
                         .apply(color_row_value_below, axis=None, index_name='mae_no_germline', val=1e-16, color='red')
                         .render(),
-                    "bp_concordance_raw_data_files_germline_removed": bp_concordance_raw_data_files_germline_removed,
                     "bp_concordance_raw_data_files": bp_concordance_raw_data_files,
                     "reproducibility_plots": reproducibility_plots,
                     "reproducibility_call_conf_mat": reproducibility_call_conf_mat.to_html(),
                     "reproducibility_call_concordance_summary": render_reproducibility_summary_html(reproducibility_call_concordance_summary),
                     "reproducibility_link": reproducibility_plots_dir + "/sample_df_targets_only.tsv",
-                    "zip_zip_reproducibility_names": zip(bp_concordance_input_files, zip_bp_concordance_plots, bp_concordance_raw_data_files_germline_removed, bp_concordance_raw_data_files),
+                    "zip_zip_reproducibility_names": zip(bp_concordance_input_files, bp_concordance_filtered_plots, bp_concordance_raw_data_files),
                     "purity_amp_plot": purity_plots_dir + "/purity_series_Amplifications.png",
                     "purity_del_plot": purity_plots_dir + "/purity_series_Deletions.png",
                     "purity_amp_summary": render_purity_summary_html(purity_amp_summary),
