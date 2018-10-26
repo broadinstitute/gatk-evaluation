@@ -25,6 +25,8 @@ workflow CNVValidation {
     Int? germline_tagging_padding
     Int? max_merge_distance
 
+    File? dummy_matched_normal
+
     ### Validation parameters
     Array[String] columns_of_interest
     Array[String] columns_of_interest_seg_calls
@@ -63,7 +65,7 @@ workflow CNVValidation {
             tumor_called_seg = cnvPair.called_copy_ratio_segments_tumor,
             tumor_modeled_seg = cnvPair.modeled_segments_tumor,
             af_param = cnvPair.allele_fraction_parameters_tumor,
-            matched_normal_called_seg = select_first([cnvPair.called_copy_ratio_segments_normal, "null"]),
+            matched_normal_called_seg = select_first([cnvPair.called_copy_ratio_segments_normal, dummy_matched_normal, "null"]),
             ref_fasta = ref_fasta,
             ref_fasta_dict = ref_fasta_dict,
             ref_fasta_fai = ref_fasta_fai,
@@ -125,7 +127,9 @@ task FixGtSegFile {
     command <<<
         set -e
 
-        cp ${seg_file} ${base_seg_name}.fixed.seg
+        # This is an issue with JaBbA files having overlapping genomic regions with diffferent CN estimates.
+        #   We discard these with a complicated grep...
+        grep -Pv "\t[0-9]+__[0-9]+\t" ${seg_file} > ${base_seg_name}.fixed.seg
 
     >>>
 

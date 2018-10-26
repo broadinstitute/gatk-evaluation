@@ -191,6 +191,7 @@ def run_purity_plotting(input_tsvs, output_dir):
         segs_df[GT_CR_COLUMN_NAME] = cr_gt
         segs_df[GUESS_CR_COLUMN_NAME] = cr_guess
         segs_gt_to_consider = segs_df[~segs_df["CALL"].isnull() & (segs_df["CONTIG"] != "2")]
+        segs_gt_to_consider["CALL"] = segs_gt_to_consider["CALL"].astype('str')
 
         ## Amps
         tp = segs_gt_to_consider[(segs_gt_to_consider["CALL"] == "+") & (segs_gt_to_consider[GT_CN_COLUMN_NAME] >= 5)]
@@ -200,7 +201,11 @@ def run_purity_plotting(input_tsvs, output_dir):
         sens_amps_N = len(all_gt_amp)
 
         fp = segs_gt_to_consider[(segs_gt_to_consider["CALL"] == "+") & (segs_gt_to_consider[GT_CN_COLUMN_NAME] <= 4)]
-        prec_amps = float(len(tp)) / float(len(tp) + len(fp))
+        if (len(tp) + len(fp)) == 0:
+            prec_amps = 1.0
+        else:
+            prec_amps = float(len(tp)) / float(len(tp) + len(fp))
+
         prec_amps_ci = clopper_pearson(len(tp), (len(tp) + len(fp)))
         prec_amps_N = len(tp) + len(fp)
 

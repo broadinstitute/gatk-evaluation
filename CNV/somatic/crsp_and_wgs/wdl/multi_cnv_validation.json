@@ -23,7 +23,7 @@
 "gs://broad-dsde-methods-test-data/crsp-private-bams/SM-74P5I.bam"
 ],
  "MultiCNVValidation.common_sites": "gs://broad-dsde-methods-th/allchr.1kg.phase3.v5a.snp.maf10.biallelic.recode.fixed.prune5.interval_list",
- "MultiCNVValidation.eval_docker": "us.gcr.io/broad-dsde-methods/gatk-evaluation/cnv_somatic_1p5:crsp_and_wgs_1.1",
+ "MultiCNVValidation.eval_docker": "us.gcr.io/broad-dsde-methods/gatk-evaluation/cnv_somatic_1p5:crsp_and_wgs_1.2beta",
  "MultiCNVValidation.gatk_docker": "us.gcr.io/broad-gatk/gatk:4.0.10.1",
  "MultiCNVValidation.gistic_blacklist_tracks_seg":"gs://gatk-best-practices/somatic-b37/CNV.hg19.bypos.v1.CR1_event_added.mod.seg",
  "MultiCNVValidation.group_id": "Evaluation_CNV_1.5",

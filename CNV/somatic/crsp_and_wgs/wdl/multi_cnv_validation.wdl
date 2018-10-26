@@ -175,6 +175,13 @@ workflow MultiCNVValidation {
         }
     }
 
+    File basis_normal_file = select_first([cnvValidationPurity.called_copy_ratio_segments_normal[0], "null"])
+    call CreateDummyMatchedNormal {
+        input:
+             basic_normal_called_seg_file = basis_normal_file,
+             eval_docker = eval_docker
+    }
+
     scatter (i in range(num_clinical_bams)) {
         call cnv_validation.CNVValidation as cnvValidationClinical {
             input:
@@ -201,7 +208,8 @@ workflow MultiCNVValidation {
                 centromere_tracks_seg = centromere_tracks_seg,
                 gistic_blacklist_tracks_seg = gistic_blacklist_tracks_seg,
                 germline_tagging_padding = germline_tagging_padding,
-                max_merge_distance = max_merge_distance
+                max_merge_distance = max_merge_distance,
+                dummy_matched_normal = CreateDummyMatchedNormal.dummy_matched_normal
         }
 
         call ClinicalSensitivityPrep {
@@ -265,7 +273,6 @@ workflow MultiCNVValidation {
             purity_tar_gz = PurityValidation.final_purity_validation_tar_gz,
             group_id = group_id_final
     }
-
 }
 
 task BpConcordanceValidation {
@@ -522,5 +529,28 @@ task CreateHtmlReport {
 
     output {
       File report_tar_gz = "GATK_CNV_Report_${group_id}.tar.gz"
+    }
+}
+
+
+task CreateDummyMatchedNormal {
+    # Must have matched targets as the tumor.
+    File basic_normal_called_seg_file
+    String eval_docker
+    String output_name = basename(basic_normal_called_seg_file)
+    command <<<
+        # Set all calls to zero.
+        set -e
+        sed -r "s/\t\+\t/\t0\t/g" ${basic_normal_called_seg_file} | sed -r "s/\t\-\t/\t0\t/g" > dummy_${output_name}
+    >>>
+    runtime {
+        docker: "${eval_docker}"
+        memory: "1 GB"
+        disks: "local-disk 100 HDD"
+        preemptible: 2
+    }
+
+    output {
+      File dummy_matched_normal = "dummy_${output_name}"
     }
 }

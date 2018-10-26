@@ -181,7 +181,7 @@ def main():
     clinical_amp_plots = glob(clinical_plots_dir + "/clinical_Amp*target*.png")
     clinical_del_plots = glob(clinical_plots_dir + "/clinical_Del*target*.png")
     reproducibility_plots = glob(reproducibility_plots_dir + "/reproducibility_*.png")
-    bp_concordance_filtered_plots = sorted(glob(bp_concordance_dir + "/*bp_concordance*.png"))
+    bp_concordance_filtered_plots = sorted(glob(bp_concordance_dir + "/*bp_concordance*bp.png"))
     bp_concordance_input_files = [".".join(os.path.basename(p).split(".")[0:2]) for p in bp_concordance_filtered_plots]
     bp_concordance_raw_data_files = glob(bp_concordance_dir + "/*.seg_comparison_edit.txt")
 
@@ -218,8 +218,8 @@ def main():
                             ('text-align', 'left'),("font-size", "11px")]},
                         {'selector': 'tr:nth-child(odd)', 'props': [('background-color', '#ddd')]}
                         ])
-                        .apply(color_row_value_above, axis=None, index_name='mae_no_germline', val=mae_threshold, color='#f99')
-                        .apply(color_row_value_below, axis=None, index_name='mae_no_germline', val=1e-16, color='red')
+                        .apply(color_row_value_above, axis=None, index_name='mae', val=mae_threshold, color='#f99')
+                        .apply(color_row_value_below, axis=None, index_name='mae', val=1e-16, color='red')
                         .render(),
                     "bp_concordance_raw_data_files": bp_concordance_raw_data_files,
                     "reproducibility_plots": reproducibility_plots,
