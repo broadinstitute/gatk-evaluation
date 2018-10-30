@@ -57,16 +57,18 @@ RUN apt-get update && \
 WORKDIR /advisor
 RUN git clone https://github.com/tobegit3hub/advisor.git /advisor
 
-#RUN pip2 install -r /advisor/requirements.txt
+RUN pip2 install -r /advisor/requirements.txt
 
-#RUN pip2 install -r /advisor/advisor_client/requirements.txt
+RUN pip2 install -r /advisor/advisor_client/requirements.txt
 
 # Install server
-#RUN python2 /advisor/advisor_server/manage.py migrate
+RUN python2 /advisor/advisor_server/manage.py migrate
 
 # Install client
-#RUN python2 /advisor/advisor_client/setup.py develop
+RUN python2 /advisor/advisor_client/setup.py develop
 
-#EXPOSE 8000
+EXPOSE 8000
 
-#CMD ["python2", "/advisor/advisor_server/manage.py", "runserver", "0.0.0.0:8000"]
+CMD ["python2", "/advisor/advisor_server/manage.py", "runserver", "0.0.0.0:8000"]
+
+WORKDIR /
