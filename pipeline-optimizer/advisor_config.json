@@ -1,0 +1,19 @@
+{
+  "name": "demo",
+  "algorithm": "BayesianOptimization",
+  "trialNumber": 10,
+  "path": ".",
+  "command": "docker -it gatk-evaluation/pipeline-optimizer:test -v run_workflow.py:/run_workflow.py -v workflow.wdl:/workflow.wdl python2 /run_workflow.py",
+  "search_space": {
+      "goal": "MINIMIZE",
+      "randomInitTrials": 3,
+      "params": [
+          {
+              "parameterName": "variable",
+              "type": "DOUBLE",
+              "minValue": -10.0,
+              "maxValue": 10.0
+          }
+      ]
+  }
+}
