@@ -1,4 +1,5 @@
 {
+ "MultiCNVValidation.blacklist_intervals": "gs://gatk-best-practices/somatic-b37/CNV_and_centromere_blacklist.hg19.list",
  "MultiCNVValidation.calling_copy_ratio_z_score_threshold": 3.05,
  "MultiCNVValidation.centromere_tracks_seg":"gs://gatk-best-practices/somatic-b37/final_centromere_hg19.seg",
  "MultiCNVValidation.clinical_seg_gts": [

@@ -24,6 +24,7 @@ workflow CNVValidation {
     File gistic_blacklist_tracks_seg
     Int? germline_tagging_padding
     Int? max_merge_distance
+    File? blacklist_intervals
 
     File? dummy_matched_normal
 
@@ -57,7 +58,8 @@ workflow CNVValidation {
             smoothing_threshold_allele_fraction = smoothing_threshold_allele_fraction,
             smoothing_threshold_copy_ratio = smoothing_threshold_copy_ratio,
             mem_gb_for_model_segments = 31,
-            calling_copy_ratio_z_score_threshold = calling_copy_ratio_z_score_threshold
+            calling_copy_ratio_z_score_threshold = calling_copy_ratio_z_score_threshold,
+            blacklist_intervals = blacklist_intervals
     }
 
     call CNVPostProcessing.CombineTracksWorkflow as CombineTracksWorkflow {

@@ -19,3 +19,7 @@ If you need to submit to a different server:
 ```bash
 export CROMWELL_URL="https://my_server:cromwell_port"
 ```
+
+### Is there json for creating the PoNs?
+
+Yes, see `pon_input_*.json` files for PoN creation for the ICE and WGS portions of this evaluation.

@@ -25,6 +25,8 @@ workflow MultiCNVValidation {
 
     String eval_docker
 
+    File? blacklist_intervals
+
     ### Validation parameters
     Float? num_changepoints_penalty_factor_normal
     Float? kernel_variance_allele_fraction
@@ -40,8 +42,11 @@ workflow MultiCNVValidation {
     Array[String] wgs_columns_of_interest_or_default = select_first([wgs_columns_of_interest, [
         "final_total_cn", "final_major_cn", "final_minor_cn", "consensus_total_cn", "consensus_major_cn", "consensus_minor_cn",
         "star", "level", "absolute_broad_major_cn", "absolute_broad_minor_cn", "battenberg_major_cn", "battenberg_minor_cn", "sclust_major_cn", "sclust_minor_cn",
-        "LOG2_COPY_RATIO_POSTERIOR_50", "LOG2_COPY_RATIO_POSTERIOR_10", "LOG2_COPY_RATIO_POSTERIOR_90"
+        "LOG2_COPY_RATIO_POSTERIOR_50", "LOG2_COPY_RATIO_POSTERIOR_10", "LOG2_COPY_RATIO_POSTERIOR_90","MEAN_LOG2_COPY_RATIO",
+        "MINOR_ALLELE_FRACTION_POSTERIOR_10", "MINOR_ALLELE_FRACTION_POSTERIOR_50", "MINOR_ALLELE_FRACTION_POSTERIOR_90"
     ]])
+
+    # We never actually do anything with these.  TODO: Get rid of the generation of the WGS call files if we are not going to use'em.
     Array[String] wgs_columns_of_interest_seg_calls_or_default = select_first([wgs_columns_of_interest_seg_calls, [
         "final_total_cn", "final_major_cn", "final_minor_cn", "consensus_total_cn", "consensus_major_cn", "consensus_minor_cn",
         "star", "level", "absolute_broad_major_cn", "absolute_broad_minor_cn", "battenberg_major_cn", "battenberg_minor_cn", "sclust_major_cn", "sclust_minor_cn",
@@ -129,7 +134,8 @@ workflow MultiCNVValidation {
                 centromere_tracks_seg = centromere_tracks_seg,
                 gistic_blacklist_tracks_seg = gistic_blacklist_tracks_seg,
                 germline_tagging_padding = germline_tagging_padding,
-                max_merge_distance = max_merge_distance
+                max_merge_distance = max_merge_distance,
+                blacklist_intervals = blacklist_intervals
         }
     }
 
@@ -171,7 +177,8 @@ workflow MultiCNVValidation {
                 centromere_tracks_seg = centromere_tracks_seg,
                 gistic_blacklist_tracks_seg = gistic_blacklist_tracks_seg,
                 germline_tagging_padding = germline_tagging_padding,
-                max_merge_distance = max_merge_distance
+                max_merge_distance = max_merge_distance,
+                blacklist_intervals = blacklist_intervals
         }
     }
 
@@ -209,7 +216,8 @@ workflow MultiCNVValidation {
                 gistic_blacklist_tracks_seg = gistic_blacklist_tracks_seg,
                 germline_tagging_padding = germline_tagging_padding,
                 max_merge_distance = max_merge_distance,
-                dummy_matched_normal = CreateDummyMatchedNormal.dummy_matched_normal
+                dummy_matched_normal = CreateDummyMatchedNormal.dummy_matched_normal,
+                blacklist_intervals = blacklist_intervals
         }
 
         call ClinicalSensitivityPrep {

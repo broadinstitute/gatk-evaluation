@@ -10,6 +10,9 @@ START_COL = "START"
 END_COL = "END"
 LOG2_COPY_RATIO_POSTERIOR_90_COL = "LOG2_COPY_RATIO_POSTERIOR_90"
 LOG2_COPY_RATIO_POSTERIOR_10_COL = "LOG2_COPY_RATIO_POSTERIOR_10"
+MAF_POSTERIOR_90_COL = "MINOR_ALLELE_FRACTION_POSTERIOR_90"
+MAF_POSTERIOR_10_COL = "MINOR_ALLELE_FRACTION_POSTERIOR_10"
+MAF_POSTERIOR_50_COL = "MINOR_ALLELE_FRACTION_POSTERIOR_50"
 NUM_BASES_COL = "num_bases"
 
 STAR_COL = "star"
@@ -43,10 +46,14 @@ import numpy
 import pandas
 from sklearn.metrics import mean_absolute_error as mae
 
-CR_GUESS_COLUMN = "LOG2_COPY_RATIO_POSTERIOR_50"
+CR_GUESS_COLUMN = "MEAN_LOG2_COPY_RATIO"
+MAF_GUESS_COLUMN = MAF_POSTERIOR_50_COL
 PURITY_PLOIDY_FILENAME = "consensus.20170217.purity.ploidy.txt"
 UUID_BARCODE_FILE = "UUID-BARCODE.tsv"
 GT_CN_COLUMN_NAME = "final_total_cn"
+GT_MAF = "MAF_GT"
+GT_MAJOR_CN_COLUMN_NAME = "final_major_cn"
+GT_MINOR_CN_COLUMN_NAME = "final_minor_cn"
 GT_CR_COLUMN_NAME = GT_CN_COLUMN_NAME.replace("cn", "cr")
 MIN_SEGMENT_LENGTH_BP = 0
 MIN_STARS = 2.5
@@ -60,12 +67,20 @@ FINAL_RESULTS_COLUMN_LIST = [FINAL_RESULTS_SAMPLE_COL, FINAL_RESULTS_PURITY_COL,
                              FINAL_RESULTS_STARS_COL]
 
 
-def calculate_mae_with_weights(comparison_df):
+def calculate_cr_mae_with_weights(comparison_df):
     # type: (DataFrame) -> float
     comparison_df_mad = comparison_df[~(comparison_df[CR_GUESS_COLUMN].isnull()) & ~(comparison_df[GT_CR_COLUMN_NAME].isnull())]
     if len(comparison_df_mad) == 0:
         return 0.0
     return mae(comparison_df_mad[CR_GUESS_COLUMN], comparison_df_mad[GT_CR_COLUMN_NAME],
+               sample_weight=comparison_df_mad[NUM_BASES_COL])
+
+def calculate_maf_mae_with_weights(comparison_df):
+    # type: (DataFrame) -> float
+    comparison_df_mad = comparison_df[~(comparison_df[MAF_GUESS_COLUMN].isnull()) & ~(comparison_df[GT_MAF].isnull())]
+    if len(comparison_df_mad) == 0:
+        return 0.0
+    return mae(comparison_df_mad[MAF_GUESS_COLUMN], comparison_df_mad[GT_MAF],
                sample_weight=comparison_df_mad[NUM_BASES_COL])
 
 
@@ -76,7 +91,14 @@ def calculate_mae_no_weights(comparison_df):
         return 0.0
     return mae(comparison_df_mad[CR_GUESS_COLUMN], comparison_df_mad[GT_CR_COLUMN_NAME])
 
+def calculate_maf_mae_no_weights(comparison_df):
+    # type: (DataFrame) -> float
+    comparison_df_mad = comparison_df[~(comparison_df[MAF_GUESS_COLUMN].isnull()) & ~(comparison_df[GT_MAF].isnull())]
+    if len(comparison_df_mad) == 0:
+        return 0.0
+    return mae(comparison_df_mad[MAF_GUESS_COLUMN], comparison_df_mad[GT_MAF])
 
+# TODO: Update to use Sam Lee's script that will generate these plots.
 def plot_bp_seg_concordance(output_dir, df_to_plot, short_name, other_lines_for_title=None, title_plot=None):
     # type: (str, DataFrame, str, list[str], str) -> None
     """
@@ -106,7 +128,7 @@ def plot_bp_seg_concordance(output_dir, df_to_plot, short_name, other_lines_for_
         str_other_lines_for_title = "\n" + "\n".join(other_lines_for_title)
 
     h = plt.figure()
-    mae_bp = calculate_mae_with_weights(df_to_plot)
+    mae_bp = calculate_cr_mae_with_weights(df_to_plot)
     hi_cn = 3.5
     step_cn = 0.1
     plt.hist2d(df_to_plot[CR_GUESS_COLUMN], df_to_plot[GT_CR_COLUMN_NAME],
@@ -134,6 +156,67 @@ def plot_bp_seg_concordance(output_dir, df_to_plot, short_name, other_lines_for_
     plt.colorbar()
     h.gca().add_line(plt.Line2D([0, hi_cn], [0, hi_cn], ls=":", lw=1, color='g'))
     h.gca().add_patch(patches.Rectangle((0.9, 0.9), 0.2, 0.2, facecolor="#aaaaaa", edgecolor="#000000"))
+    h.set_size_inches(9.5, 5.5)
+    h.savefig(output_dir + short_name + "_weighted_by_seg.png", dpi=90)
+    plt.close(h)
+
+def plot_bp_maf_concordance(output_dir, df_to_plot, short_name, other_lines_for_title=None, title_plot=None):
+    # type: (str, DataFrame, str, list[str], str) -> None
+    """
+    Save a png file of the concordance plot between WGS ground truth and the test case.
+
+    :param output_dir: Directory to save the output plots.
+    :param df_to_plot: DataFrame to plot.  Includes columns for both the ground truth and the test case.
+    :param short_name: a string that can be used as an identifier in the filename of the plot.
+    :param other_lines_for_title: Arbitrary strings to be included in the title.
+    :param title_plot:
+    :return:
+    """
+    if not output_dir.endswith("/"):
+        output_dir = output_dir + "/"
+
+    if title_plot is None:
+        title_plot = "Concordance"
+    title_plot += "\nSegment stars: " + str(df_to_plot["star"].unique().tolist())
+
+    # if all([math.isnan(x) for x in list(df_to_plot[MAF_GUESS_COLUMN])]):
+    #     print("All values are nan.  Cannot plot...")
+    #     return
+
+    if other_lines_for_title is None:
+        str_other_lines_for_title = ""
+    else:
+        str_other_lines_for_title = "\n" + "\n".join(other_lines_for_title)
+
+    h = plt.figure()
+    mae_bp = calculate_maf_mae_with_weights(df_to_plot)
+
+    df_to_plot_no_na = df_to_plot[(~df_to_plot[MAF_GUESS_COLUMN].isnull()) & (~df_to_plot[GT_MAF].isnull()) ]
+    wts = df_to_plot_no_na[NUM_BASES_COL]
+    xvals = df_to_plot_no_na[MAF_GUESS_COLUMN].values
+    yvals = df_to_plot_no_na[GT_MAF].values
+    plt.hist2d(xvals, yvals,
+               bins=[numpy.arange(0, 0.51, 0.01), numpy.arange(0, 0.51, 0.01)], cmin=0.0001,
+               norm=matplotlib.colors.LogNorm(), cmap='viridis_r', weights=wts)
+    plt.xlabel("GATK CNV 1.5 Model Segments MAF")
+    plt.ylabel("Calculated Ground Truth MAF")
+    plt.title(title_plot + "  bp count.  MAD: " + ("%2.3f" % mae_bp) + str_other_lines_for_title)
+    plt.colorbar()
+    h.gca().add_line(plt.Line2D([0, 0.5], [0, 0.5], ls=":", lw=1, color='g'))
+    h.set_size_inches(9.5, 5.5)
+    h.savefig(output_dir + short_name + "_weighted_by_bp.png", dpi=90)
+    plt.close(h)
+
+    h = plt.figure()
+    mae_seg = calculate_maf_mae_no_weights(df_to_plot)
+    plt.hist2d(df_to_plot[MAF_GUESS_COLUMN], df_to_plot[GT_MAF],
+               bins=[numpy.arange(0, 0.51, 0.01), numpy.arange(0, 0.51, 0.01)], cmin=0.0001,
+               norm=matplotlib.colors.LogNorm(), cmap='viridis_r')
+    plt.xlabel("GATK CNV 1.5 Model Segments MAF")
+    plt.ylabel("Calculated Ground Truth MAF")
+    plt.title(title_plot + "  seg count.  MAD: " + ("%2.3f" % mae_seg) + str_other_lines_for_title)
+    plt.colorbar()
+    h.gca().add_line(plt.Line2D([0, 0.5], [0, 0.5], ls=":", lw=1, color='g'))
     h.set_size_inches(9.5, 5.5)
     h.savefig(output_dir + short_name + "_weighted_by_seg.png", dpi=90)
     plt.close(h)
@@ -168,17 +251,23 @@ def create_segments_df_for_comparison(input_tsv, purity, ploidy):
     # type: (str, float, float) -> DataFrame
     segs_df = pandas.read_csv(input_tsv, sep="\t", comment="@")
 
+    pure_maf_gt = (segs_df[GT_MINOR_CN_COLUMN_NAME]) / (segs_df[GT_MINOR_CN_COLUMN_NAME] + segs_df[GT_MAJOR_CN_COLUMN_NAME])
+    maf_gt = pure_maf_gt + (1.0-purity)*(0.5-pure_maf_gt)
     cr_gt = 1 + (purity * ((segs_df[GT_CN_COLUMN_NAME] / ploidy) - 1))
     cr_gt.rename(GT_CR_COLUMN_NAME, inplace=True)
+    maf_gt.rename(GT_MAF, inplace=True)
     cr = 2 ** segs_df[CR_GUESS_COLUMN]
     cr10 = 2 ** segs_df[LOG2_COPY_RATIO_POSTERIOR_10_COL]
     cr90 = 2 ** segs_df[LOG2_COPY_RATIO_POSTERIOR_90_COL]
+    maf = segs_df[MAF_GUESS_COLUMN]
+    maf10 = segs_df[MAF_POSTERIOR_10_COL]
+    maf90 = segs_df[MAF_POSTERIOR_90_COL]
     weight = segs_df[END_COL] - segs_df[START_COL]
     weight.rename(NUM_BASES_COL, inplace=True)
 
     # TODO: Get rid of this next statement, since it will cut additional columns that are added in later veresions
     comparison = pandas.concat([segs_df[CONTIG_COL], segs_df[START_COL], segs_df[END_COL], cr_gt, cr, weight, segs_df[STAR_COL],
-                                cr10, cr90], axis=1)
+                                cr10, cr90, maf_gt, maf, maf10, maf90], axis=1)
     comparison_pruned = comparison[~(((comparison[CR_GUESS_COLUMN] < 1.1) & (comparison[CR_GUESS_COLUMN] > 0.9)) &
                                ((comparison[GT_CR_COLUMN_NAME] < 1.1) & (comparison[GT_CR_COLUMN_NAME] > 0.9)))]
 
@@ -256,7 +345,7 @@ if __name__ == '__main__':
                      FINAL_RESULTS_PLOIDY_COL: ploidy, FINAL_RESULTS_DISTANCE_SUCCESS_COL: distance_success,
                      FINAL_RESULTS_PROP_SUCCESS_COL: float(success_bp_all) / float(all_bp_all),
                      FINAL_RESULTS_BASES_EVALUATED_COL: all_bp_all,
-                     FINAL_RESULTS_MAE_COL: round(calculate_mae_with_weights(comparison_edit), 3),
+                     FINAL_RESULTS_MAE_COL: round(calculate_cr_mae_with_weights(comparison_edit), 3),
                      FINAL_RESULTS_STARS_COL: ",".join(comparison_edit[STAR_COL].unique().astype('str').tolist())}
         final_results_df = final_results_df.append(Series(name=sample_file, data=line_dict))
 
@@ -265,6 +354,8 @@ if __name__ == '__main__':
 
         plot_bp_seg_concordance(output_dir, comparison_edit, short_name=sample_file + "_bp_concordance",
                                 title_plot="Concordance", other_lines_for_title=other_lines)
+        plot_bp_maf_concordance(output_dir, comparison_edit, short_name=sample_file + "_bp_maf_concordance",
+                                title_plot="Concordance", other_lines_for_title=[])
 
     final_results_filename = output_dir + "final_results.txt"
     print("Writing final results: " + final_results_filename)
