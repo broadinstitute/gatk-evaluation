@@ -21,11 +21,11 @@ def main():
     
     client = AdvisorClient.AdvisorClient(endpoint=args.advisor_server)
     
-    cromwell_auth = CromwellAuth(url=args.cromwell_server, header=None, auth=None)
+    cromwell_auth = CromwellAuth(url=args.cromwell_server, header={"Authorization": "bearer fake_token"}, auth=None)
     
     print CromwellAPI.health(cromwell_auth)
     
-#    CromwellAPI.submit(cromwell_auth, args.workflow_wdl, args.template_json)
+    print CromwellAPI.submit(cromwell_auth, args.workflow_wdl, args.template_json)
 
 
 if __name__ == "__main__":

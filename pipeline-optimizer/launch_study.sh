@@ -28,7 +28,7 @@ echo "TEMPLATE_JSON: ${TEMPLATE_JSON}"
 echo "HYPERPARAMETERS_JSON: ${HYPERPARAMETERS_JSON}"
 
 docker run \
-    --network="host" \
+    --network host \
     -v $PWD/launch_study.py:/launch_study.py \
     -v $PWD/${WORKFLOW_WDL}:/workflow.wdl \
     -v $PWD/${TEMPLATE_JSON}:/template.json \
