@@ -5,7 +5,7 @@ workflow ExampleMetricsWorkflow {
     call ExampleMetricsTask {
         input:
             variable = variable,
-	    constant = constant
+	        constant = constant
     }
 
     output {

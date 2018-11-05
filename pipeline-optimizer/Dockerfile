@@ -27,8 +27,8 @@ RUN apt-get update && \
   apt-get clean all
 
 # Download and expose womtool
-ADD https://github.com/broadinstitute/cromwell/releases/download/35/womtool-35.jar /usr/local/bin/womtool/womtool-35.jar
-ENV WOMTOOL /usr/local/bin/womtool/womtool-35.jar
+ADD https://github.com/broadinstitute/cromwell/releases/download/36/womtool-36.jar /usr/local/bin/womtool/womtool-36.jar
+ENV WOMTOOL /usr/local/bin/womtool/womtool-36.jar
 
 # Upgrade pip for Python2
 RUN pip install --upgrade pip
@@ -64,10 +64,10 @@ RUN python2 /advisor/advisor_server/manage.py migrate
 # Install client
 RUN pip2 install -r /advisor/advisor_client/requirements.txt
 # RUN python2 /advisor/advisor_client/setup.py develop
-RUN pip2 install /advisor/advisor_client/
+RUN pip2 install -e /advisor/advisor_client/
 
-EXPOSE 8000
+EXPOSE 8001
 
-CMD ["python2", "/advisor/advisor_server/manage.py", "runserver", "0.0.0.0:8000"]
+CMD ["python2", "/advisor/advisor_server/manage.py", "runserver", "127.0.0.1:8001"]
 
 WORKDIR /

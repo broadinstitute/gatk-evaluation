@@ -1,0 +1,12 @@
+{
+    "goal": "MINIMIZE",
+    "maxTrials": 25,
+    "randomInitTrials": 5,
+    "params": [{
+        "parameterName": "ExampleMetricsWorkflow.variable",
+        "type": "DOUBLE",
+        "minValue": -10,
+        "maxValue": 10,
+        "scalingType": "LINEAR"
+    }]
+}
