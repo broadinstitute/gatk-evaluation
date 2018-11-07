@@ -101,8 +101,8 @@ def main():
     sample_df = pandas.read_csv(input_file, sep="\t", comment="@")
 
     # Back out a copy ratio (not log'd) from the output of the CNV tool.
-    sample_df["guess_cr_1"] = 2 ** sample_df["MEAN_LOG2_COPY_RATIO_1"]
-    sample_df["guess_cr_2"] = 2 ** sample_df["MEAN_LOG2_COPY_RATIO_2"]
+    sample_df["guess_cr_1"] = 2 ** sample_df["LOG2_COPY_RATIO_POSTERIOR_50_1"]
+    sample_df["guess_cr_2"] = 2 ** sample_df["LOG2_COPY_RATIO_POSTERIOR_50_2"]
 
     # Back out a copy number.
     #  Important note:  This assumes a purity of 100%
