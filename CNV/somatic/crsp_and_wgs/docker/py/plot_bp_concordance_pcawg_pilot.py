@@ -25,6 +25,7 @@ PURITY_PLOIDY_INPUT_SAMPLENAME_COL = "samplename"
 FINAL_RESULTS_STARS_COL = "stars"
 FINAL_RESULTS_MAE_NO_GERMLINE_COL = "mae_no_germline"
 FINAL_RESULTS_MAE_COL = "mae"
+FINAL_RESULTS_MAF_MAE_COL = "maf_mae"
 FINAL_RESULTS_BASES_EVALUATED_NO_GERMLINE_COL = "num_bases_evaluated_no_germline"
 FINAL_RESULTS_BASES_EVALUATED_COL = "num_bases_evaluated"
 FINAL_RESULTS_PROP_SUCCESS_NO_GERMLINE_COL = "prop_success_no_germline"
@@ -346,6 +347,7 @@ if __name__ == '__main__':
                      FINAL_RESULTS_PROP_SUCCESS_COL: float(success_bp_all) / float(all_bp_all),
                      FINAL_RESULTS_BASES_EVALUATED_COL: all_bp_all,
                      FINAL_RESULTS_MAE_COL: round(calculate_cr_mae_with_weights(comparison_edit), 3),
+                     FINAL_RESULTS_MAF_MAE_COL: round(calculate_maf_mae_with_weights(comparison_edit), 3),
                      FINAL_RESULTS_STARS_COL: ",".join(comparison_edit[STAR_COL].unique().astype('str').tolist())}
         final_results_df = final_results_df.append(Series(name=sample_file, data=line_dict))
 
