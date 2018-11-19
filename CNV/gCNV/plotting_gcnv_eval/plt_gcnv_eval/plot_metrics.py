@@ -2,14 +2,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def plot_number_of_events_distribution(output_dir: str, gcnv_segment_vcfs: list):
+def plot_number_of_events_distribution(output_file: str, gcnv_segment_vcfs: list):
     variant_num_list = []
     for gcnv_vcf in gcnv_segment_vcfs:
         variant_num_list.append(count_num_variants(gcnv_vcf))
     fig = plt.figure(figsize=(10,6))
     plt.title("Event number distribution")
     plt.hist(variant_num_list, bins=100, edgecolor='black', linewidth=1)
-    fig.savefig(output_dir + 'event_num_distr.png', dpi=120)
+    fig.savefig(output_file, dpi=120)
     print("Mean number of segments in each sample: ")
     print(np.mean(np.array(variant_num_list)))
     print("\n")

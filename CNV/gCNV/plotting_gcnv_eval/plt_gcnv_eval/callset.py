@@ -7,6 +7,7 @@ import vcf
 from interval import Interval
 from interval_collection import IntervalCollection
 
+
 class EventType(Enum):
     """Enumeration of possible alleles"""
 
@@ -19,8 +20,9 @@ class EventType(Enum):
     def gcnv_call_to_event_type(cls, gcnv_call: int):
         return cls(gcnv_call)
 
+
 class Call:
-    """Stores an event type and calls qualities for a single interval and single sample"""
+    """Stores an event type and call qualities for a single interval and single sample"""
 
     def __init__(self, interval: Interval, sample: str, event_type: EventType, call_attributes: map):
         self.interval = interval
@@ -38,8 +40,7 @@ class Callset(ABC):
 
     @abstractmethod
     def __init__(self, sample_to_calls_map: map):
-        """
-        Constructor for abstract callset representation
+        """Constructor for abstract callset representation
 
         Args:
             sample_names: list of sample names in the collection
@@ -59,9 +60,7 @@ class Callset(ABC):
         pass
 
     def filter_callset(call_filter):
-        """
-        Filter callset given a binary lambda function that accepts Call.call_info as argument
-        """
+        """Filter callset given a binary lambda function that accepts Call.call_info as argument"""
         for sample in sample_names:
             intervals, calls = self.sample_to_calls_map[sample]
             self.indices_filtered[sample] = set([i for i in range(len(intervals)) if call_filter(calls[i].call_attributes)])
@@ -83,7 +82,7 @@ class Callset(ABC):
 
         current_position = min(intervals.interval_list[filtered_indices[0]].start, interval.start)
         intersection = []
-
+        # TODO refactor this
         for index in filtered_indices:
             call_interval_end = intervals.interval_list[index].end
             call_interval_start = intervals.interval_list[index].start
@@ -117,12 +116,18 @@ class TruthCallset(Callset):
     def read_in_callset(cls, **kwargs):
         assert "truth_file" in kwargs
         truth_file = kwargs["truth_file"]
+        interval_file = kwargs["interval_file"]
+
+        considered_interval_collection = IntervalCollection.read_interval_list(interval_file)
 
         truth_calls_pd = pd.read_csv(open(truth_file, 'r'), sep="\t", comment="#", header=None,
                                      names=["chrom", "start", "end", "name" , "svtype", "samples"])
 
         sample_to_calls_map = {}
 
+        previous_interval = None
+        number_of_overlapping_events = 0
+        samples_set = set()
         for index, row in truth_calls_pd.iterrows():
             event_type = cls.__get_event_type_from_svtype(row["svtype"])
 
@@ -130,30 +135,33 @@ class TruthCallset(Callset):
                 continue
 
             interval = Interval(row["chrom"], int(row["start"]), int(row["end"]))
+            if (previous_interval is not None and interval.chrom == previous_interval.chrom and interval.start < previous_interval.start):
+                raise ValueError("Intervals Interval(%s) and Interval(%s) in truth callset are not in sorted order" % (previous_interval, interval))
+
             sample_names = set(row["samples"].split(","))
 
             for sample_name in sample_names:
                 call = Call(interval=interval, sample=sample_name, event_type=event_type, call_attributes=None)
                 if sample_name in sample_to_calls_map:
-                    #Merge overlapping events with the same call
-                    if len(sample_to_calls_map[sample_name][0].interval_list) > 0 and (sample_to_calls_map[sample_name][0].interval_list[-1].intersects_with(interval)):
-
-                        if (sample_to_calls_map[sample_name][1][-1].event_type != call.event_type):
-                            print("Truth calls don't make sense for sample %s" % sample_name)
-                            print(sample_to_calls_map[sample_name][1][-1].event_type)
-                            print(call.event_type)
-                            print(interval)
+                    #TODO Merge overlapping events with the same call
+                    #TODO If one call is contained in another only keep the larger call
+                    samples_set.add(sample_name)
+                    intersect_indices = considered_interval_collection.find_intersecting_interval_indices(interval)
+                    if (len(intersect_indices) > 0):
+                        if (len(sample_to_calls_map[sample_name][0].find_intersecting_interval_indices(interval)) > 0):
+                            number_of_overlapping_events += 1
+                            #print("There is a ambigous call in the truth callset that intersects with considered interval list")
                             continue
-                        continue
-                        assert sample_to_calls_map[sample_name][0].interval_list[-1].start < interval.end, \
-                            "Truth intervals are not sorted: Interval(%s), Interval(%s)" % (sample_to_calls_map[sample_name][0].interval_list[-1], interval)
-                        sample_to_calls_map[sample_name][0].interval_list[-1].end = interval.end
-                        continue
 
                     sample_to_calls_map[sample_name][0].interval_list.append(interval)
                     sample_to_calls_map[sample_name][1].append(call)
                 else:
-                    sample_to_calls_map[sample_name] = (IntervalCollection([], None), [call])
+                    sample_to_calls_map[sample_name] = (IntervalCollection([interval], None), [call])
+
+            previous_interval = interval
+
+        print("There are %d unique samples in truth set" % (len(samples_set)))
+        print("There are %d intersecting events in truth set" % (number_of_overlapping_events))
 
         return cls(sample_to_calls_map)
 
