@@ -152,3 +152,9 @@ ENV/
 
 /CNV/somatic/crsp_and_wgs/wdl/deploy.sh
 .idea/
+
+# Mac file GUI stuff
+.DS_Store
+
+#plotting test dir
+CNV/gCNV/plotting_gcnv_eval/plt_gcnv_eval/test_files
