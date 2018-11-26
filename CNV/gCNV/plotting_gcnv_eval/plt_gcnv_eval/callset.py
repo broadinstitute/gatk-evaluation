@@ -6,6 +6,7 @@ import vcf
 
 from interval import Interval
 from interval_collection import IntervalCollection
+from filtering import CallsetFilter
 
 
 class EventType(Enum):
@@ -17,7 +18,7 @@ class EventType(Enum):
     NO_CALL = 3
 
     @classmethod
-    def gcnv_call_to_event_type(cls, gcnv_call: int):
+    def gcnv_genotype_to_event_type(cls, gcnv_call: int):
         return cls(gcnv_call)
 
 
@@ -59,7 +60,7 @@ class Callset(ABC):
     def read_in_callset(cls, **kwargs):
         pass
 
-    def filter_callset(call_filter):
+    def filter_callset(call_filter: CallsetFilter):
         """Filter callset given a binary lambda function that accepts Call.call_info as argument"""
         for sample in sample_names:
             intervals, calls = self.sample_to_calls_map[sample]
@@ -121,12 +122,15 @@ class TruthCallset(Callset):
         considered_interval_collection = IntervalCollection.read_interval_list(interval_file)
 
         truth_calls_pd = pd.read_csv(open(truth_file, 'r'), sep="\t", comment="#", header=None,
-                                     names=["chrom", "start", "end", "name" , "svtype", "samples"])
+                                     names=["chrom", "start", "end", "name" , "svtype", "samples"],
+                                     dtype={"chrom": str, "start": int, "end": int, "name": str, "svtype": str, "samples": str})
 
         sample_to_calls_map = {}
-
-        previous_interval = None
-        number_of_overlapping_events = 0
+        previous_interval_truth = None
+        number_of_not_rescued_overlapping_events = 0
+        number_of_overlapping_events_same_genotype = 0
+        number_of_enveloped_events = 0
+        overall_events = 0 
         samples_set = set()
         for index, row in truth_calls_pd.iterrows():
             event_type = cls.__get_event_type_from_svtype(row["svtype"])
@@ -135,34 +139,46 @@ class TruthCallset(Callset):
                 continue
 
             interval = Interval(row["chrom"], int(row["start"]), int(row["end"]))
-            if (previous_interval is not None and interval.chrom == previous_interval.chrom and interval.start < previous_interval.start):
-                raise ValueError("Intervals Interval(%s) and Interval(%s) in truth callset are not in sorted order" % (previous_interval, interval))
+            if (previous_interval_truth is not None and interval.chrom == previous_interval_truth.chrom and interval.start < previous_interval_truth.start):
+                raise ValueError("Intervals Interval(%s) and Interval(%s) in truth callset are not in sorted order" % (previous_interval_truth, interval))
 
             sample_names = set(row["samples"].split(","))
 
             for sample_name in sample_names:
                 call = Call(interval=interval, sample=sample_name, event_type=event_type, call_attributes=None)
                 if sample_name in sample_to_calls_map:
-                    #TODO Merge overlapping events with the same call
-                    #TODO If one call is contained in another only keep the larger call
                     samples_set.add(sample_name)
                     intersect_indices = considered_interval_collection.find_intersecting_interval_indices(interval)
                     if (len(intersect_indices) > 0):
+                        overall_events += 1
                         if (len(sample_to_calls_map[sample_name][0].find_intersecting_interval_indices(interval)) > 0):
-                            number_of_overlapping_events += 1
-                            #print("There is a ambigous call in the truth callset that intersects with considered interval list")
-                            continue
+                            last_interval = sample_to_calls_map[sample_name][0].interval_list[-1]
+                            last_call = sample_to_calls_map[sample_name][1][-1]
+                            if (last_interval.end < interval.end and last_call.event_type == call.event_type):
+                                # Merge overlapping events with the same call
+                                sample_to_calls_map[sample_name][0].interval_list[-1] = Interval(interval.chrom, last_interval.start, interval.end)
+                                sample_to_calls_map[sample_name][1][-1].interval = sample_to_calls_map[sample_name][0].interval_list[-1]
+                                number_of_overlapping_events_same_genotype += 1
+                            elif (interval.end < last_interval.end):
+                                #If one call is contained in another only keep the larger call
+                                number_of_enveloped_events += 1
+                                continue
+                            else:
+                                number_of_not_rescued_overlapping_events += 1
+                                continue
 
                     sample_to_calls_map[sample_name][0].interval_list.append(interval)
                     sample_to_calls_map[sample_name][1].append(call)
                 else:
                     sample_to_calls_map[sample_name] = (IntervalCollection([interval], None), [call])
 
-            previous_interval = interval
+            previous_interval_truth = interval
 
         print("There are %d unique samples in truth set" % (len(samples_set)))
-        print("There are %d intersecting events in truth set" % (number_of_overlapping_events))
-
+        print("There are %d events for all samples in the truth call set" % (overall_events))
+        print("There are %d intersecting events in truth set that were not rescued" % (number_of_not_rescued_overlapping_events))
+        print("There are %d overlapping events with the same genotype" % (number_of_overlapping_events_same_genotype))
+        print("There are %d enveloped events with different genotypes" % (number_of_enveloped_events))
         return cls(sample_to_calls_map)
 
     @staticmethod
@@ -188,8 +204,8 @@ class GCNVCallset(Callset):
         assert "gcnv_segment_vcfs" in kwargs
         gcnv_segment_vcfs = kwargs["gcnv_segment_vcfs"]
         sample_to_calls_map = {}
-
         for vcf_file in gcnv_segment_vcfs:
+
             vcf_reader = vcf.Reader(open(vcf_file, 'r'))
             assert len(vcf_reader.samples) == 1
             sample_name = vcf_reader.samples[0]
@@ -197,7 +213,7 @@ class GCNVCallset(Callset):
 
             for record in vcf_reader:
                 interval = Interval(record.CHROM, record.POS, record.INFO['END'])
-                event_type = EventType.gcnv_call_to_event_type(int(record.genotype(sample_name)['GT']))
+                event_type = EventType.gcnv_genotype_to_event_type(int(record.genotype(sample_name)['GT']))
                 attributes = {'QS': int(record.genotype(sample_name)['QS']),
                               'QA': int(record.genotype(sample_name)['QA']),
                               'NP': int(record.genotype(sample_name)['NP'])}

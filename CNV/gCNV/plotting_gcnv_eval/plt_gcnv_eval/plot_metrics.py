@@ -1,6 +1,7 @@
-import matplotlib.pyplot as plt
+import matplotlib 
 import numpy as np
-
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 
 def plot_number_of_events_distribution(output_file: str, gcnv_segment_vcfs: list):
     variant_num_list = []
@@ -9,10 +10,9 @@ def plot_number_of_events_distribution(output_file: str, gcnv_segment_vcfs: list
     fig = plt.figure(figsize=(10,6))
     plt.title("Event number distribution")
     plt.hist(variant_num_list, bins=100, edgecolor='black', linewidth=1)
+    plt.xlabel("Number of segments")
     fig.savefig(output_file, dpi=120)
-    print("Mean number of segments in each sample: ")
-    print(np.mean(np.array(variant_num_list)))
-    print("\n")
+    print("Mean number of segments in each sample: %d" % (np.mean(np.array(variant_num_list))))
 
 def count_num_variants(vcf_file):
     num_vars = 0

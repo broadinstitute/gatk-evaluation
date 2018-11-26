@@ -15,7 +15,9 @@ class IntervalCollection:
     @classmethod
     def read_interval_list(cls, interval_list_file):
         header = io_plt.read_comments_lines(interval_list_file)
-        intervals_df = pd.read_csv(open(interval_list_file, 'r'), comment="@", delimiter="\t", usecols=[0,1,2], header=None, names=["CONTIG","START","END"])
+        intervals_df = pd.read_csv(open(interval_list_file, 'r'), comment="@", delimiter="\t",
+                                   usecols=[0,1,2], header=None, names=["CONTIG","START","END"],
+                                   dtype={"CONTIG": str, "START": int, "END": int})
         intervals_series = intervals_df.apply(lambda x: Interval(str(x.CONTIG), int(x.START), int(x.END)), axis=1)
         interval_list = intervals_series.tolist()
         return cls(interval_list=interval_list, header=header)
@@ -23,7 +25,7 @@ class IntervalCollection:
     @staticmethod
     def assert_interval_list_sorted(interval_list):
         for index in range(len(interval_list) - 1):
-            assert (interval_list[index] < interval_list[index+1]), \
+            assert (interval_list[index].chrom != interval_list[index+1].chrom or interval_list[index].start < interval_list[index+1].start), \
                      ("Interval list is not sorted for intervals Interval(%s) and Interval(%s)" % (str(interval_list[index]), str(interval_list[index+1])))
 
     def write_interval_list(self, output_file_path: str, output_file_name):
@@ -35,6 +37,8 @@ class IntervalCollection:
                 output.write(interval.to_interval_file_string() + "\n")
 
     def find_intersecting_interval_indices(self, interval: Interval):
+        if (len(self.interval_list) == 0):
+            return []
         if (self.last_searched_index == None):
             return self.__perform_binary_search(interval)
         else:

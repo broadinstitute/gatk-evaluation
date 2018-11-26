@@ -9,9 +9,10 @@ class Evaluator:
     Computes a confusion matrix of a generated callset given a truth callset on an array of samples
     """
 
-    def __init__(self, evaluation_name: str, considered_intervals: IntervalCollection, samples_to_evaluate: list):
+    def __init__(self, evaluation_name: str, considered_intervals: IntervalCollection, blacklisted_intervals_truth: IntervalCollection, samples_to_evaluate: list):
         self.evaluation_name = evaluation_name
         self.considered_intervals = considered_intervals
+        self.blacklisted_intervals_truth = blacklisted_intervals_truth
         self.samples = samples_to_evaluate
 
     def evaluate_callsets(self, callset_truth: Callset, callset_to_evaluate: Callset):
@@ -19,6 +20,11 @@ class Evaluator:
         # we assume that everything marked NO_CALL in the truth callset is a reference allele
         for sample in self.samples:
             for interval in self.considered_intervals.interval_list:
+
+                # Exclude intervals that were blacklisted while producing the truth callset from evaluation
+                # TODO Check for partial overlap and keep it
+                if (len(self.blacklisted_intervals_truth.find_intersecting_interval_indices(interval)) > 0):
+                    continue
 
                 truth_calls = callset_truth.find_intersection_with_interval(interval, sample) # this returns a list of pairs (interval, event_type)
                 eval_calls = callset_to_evaluate.find_intersection_with_interval(interval, sample)
