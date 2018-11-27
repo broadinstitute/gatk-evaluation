@@ -180,9 +180,9 @@ def plot_bp_maf_concordance(output_dir, df_to_plot, short_name, other_lines_for_
         title_plot = "Concordance"
     title_plot += "\nSegment stars: " + str(df_to_plot["star"].unique().tolist())
 
-    # if all([math.isnan(x) for x in list(df_to_plot[MAF_GUESS_COLUMN])]):
-    #     print("All values are nan.  Cannot plot...")
-    #     return
+    if all([math.isnan(x) for x in list(df_to_plot[MAF_GUESS_COLUMN])]):
+        print("All values are nan.  Cannot plot...")
+        return
 
     if other_lines_for_title is None:
         str_other_lines_for_title = ""
