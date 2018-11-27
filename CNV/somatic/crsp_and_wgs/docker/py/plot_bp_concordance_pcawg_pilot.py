@@ -357,7 +357,7 @@ if __name__ == '__main__':
         plot_bp_seg_concordance(output_dir, comparison_edit, short_name=sample_file + "_bp_concordance",
                                 title_plot="Concordance", other_lines_for_title=other_lines)
         plot_bp_maf_concordance(output_dir, comparison_edit, short_name=sample_file + "_bp_maf_concordance",
-                                title_plot="Concordance", other_lines_for_title=[])
+                                title_plot="MAF Concordance", other_lines_for_title=[])
 
     final_results_filename = output_dir + "final_results.txt"
     print("Writing final results: " + final_results_filename)
