@@ -99,12 +99,14 @@ Samples for which the methods disagreed on the ploidy have gone through an adjus
 <!-- Auto-generated --> {{ bp_concordance_summary|safe }} <!-- End auto-generated -->
 <table width="95%">
     <tr>
-        <td width="0.5" align="center"><h4>Germline Events Filtered</h4></td>
+        <td width="0.95" align="center"><h4>Germline Events Filtered</h4></td>
     </tr>
+
     {% for t in zip_zip_reproducibility_names %}
     <tr>
-        <td width="0.5" align="center">{{ t.0 }} (<a href="{{ t.2 }}" >Plot Data</a>)<img width="95%" src="{{ t.1 }}" /><img width="95%" src="{{ t.3 }}" /></td>
+        <td width="0.5" align="center">{{ t.0 }} (<a href="{{ t.2 }}" >Plot Data</a>)</td>
     </tr>
+    <tr><td width="0.5" align="center"><img width="95%" src="{{ t.1 }}" /></td><td><img width="95%" src="{{ t.3 }}" /></td></tr>
     {% endfor %}
 </table>
 

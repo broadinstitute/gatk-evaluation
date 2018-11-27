@@ -182,11 +182,13 @@ def main():
     clinical_del_plots = glob(clinical_plots_dir + "/clinical_Del*target*.png")
     reproducibility_plots = glob(reproducibility_plots_dir + "/reproducibility_*.png")
     bp_concordance_filtered_plots = sorted(glob(bp_concordance_dir + "/*bp_concordance*bp.png"))
-    bp_concordance_maf_plots = sorted(glob(bp_concordance_dir + "/*bp_maf_concordance*bp.png"))
+    bp_concordance_maf_plots = sorted(glob(bp_concordance_dir + "/*bp_*maf*bp.png"))
     bp_concordance_input_files = [".".join(os.path.basename(p).split(".")[0:2]) for p in bp_concordance_filtered_plots]
     bp_concordance_raw_data_files = glob(bp_concordance_dir + "/*.seg_comparison_edit.txt")
 
     # https://pandas.pydata.org/pandas-docs/stable/style.html
+
+    logging.info(str(bp_concordance_maf_plots))
 
     ### WGS bp Concordance table
     bp_concordance_summary = pandas.read_csv(bp_concordance_dir + "/final_results.txt", sep="\t", index_col=0)
