@@ -32,6 +32,7 @@
  "MultiCNVValidation.ice_read_count_pon": "gs://broad-dsde-methods-lichtens/cromwell-executions-test-dl-oxoq-full/CNVSomaticPanelWorkflow/ab1675e3-f946-49e7-91ac-2d495caff1ec/call-CreateReadCountPanelOfNormals/PoN_ICE_GATK4.0_300samples_blacklist.pon.hdf5",
  "MultiCNVValidation.is_bp_validation": true,
  "MultiCNVValidation.is_purity_validation": true,
+ "MultiCNVValidation.max_merge_distance": 10000,
  "MultiCNVValidation.purity_gt_seg_files": [
   "gs://broad-dsde-methods-lichtens/evaltest/HCC1143.curated.genes.cn.updated_headers.merged.txt",
   "gs://broad-dsde-methods-lichtens/evaltest/HCC1143.curated.genes.cn.updated_headers.merged.txt",
@@ -203,7 +204,7 @@
   "gs://broad-dsde-methods-test-data/tcga-private-bams/wgs/pcawg_pilot/G32456.TCGA-CF-A3MF-10A-01D-A21A-08.3.bam.bai",
   "gs://broad-dsde-methods-test-data/tcga-private-bams/wgs/pcawg_pilot/G23076.TCGA_CV_5443_11A_01D_2268_08.1.bam.bai"
  ],
- "MultiCNVValidation.wgs_read_count_pon": "gs://broad-dsde-methods-lichtens/cromwell-executions-test-dl-oxoq-full/CNVSomaticPanelWorkflow/52b62dd6-d4f6-4af1-b4d4-c045b320434a/call-CreateReadCountPanelOfNormals/PoN_4.0_Nov2018_WGS_blacklist.pon.hdf5",
+ "MultiCNVValidation.wgs_read_count_pon": "gs://broad-dsde-methods-lichtens/cromwell-executions-test-dl-oxoq-full/CNVSomaticPanelWorkflow/db0afd8d-234b-49cd-b831-5b6492d34eba/call-CreateReadCountPanelOfNormals/PoN_4.0_Nov2018_WGS_blacklist.pon.hdf5",
  "MultiCNVValidation.wgs_tumor_bam_files": [
   "gs://broad-dsde-methods-test-data/tcga-private-bams/wgs/pcawg_pilot/TCGA-KO-8416-01A-11D-2310-10_wgs_Illumina.bam",
   "gs://broad-dsde-methods-test-data/tcga-private-bams/wgs/pcawg_pilot/46558eada33c446ae8c1b02d32740dab.bam",

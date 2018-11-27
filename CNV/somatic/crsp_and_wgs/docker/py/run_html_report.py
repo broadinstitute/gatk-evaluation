@@ -182,6 +182,7 @@ def main():
     clinical_del_plots = glob(clinical_plots_dir + "/clinical_Del*target*.png")
     reproducibility_plots = glob(reproducibility_plots_dir + "/reproducibility_*.png")
     bp_concordance_filtered_plots = sorted(glob(bp_concordance_dir + "/*bp_concordance*bp.png"))
+    bp_concordance_maf_plots = sorted(glob(bp_concordance_dir + "/*bp_maf_concordance*bp.png"))
     bp_concordance_input_files = [".".join(os.path.basename(p).split(".")[0:2]) for p in bp_concordance_filtered_plots]
     bp_concordance_raw_data_files = glob(bp_concordance_dir + "/*.seg_comparison_edit.txt")
 
@@ -226,7 +227,7 @@ def main():
                     "reproducibility_call_conf_mat": reproducibility_call_conf_mat.to_html(),
                     "reproducibility_call_concordance_summary": render_reproducibility_summary_html(reproducibility_call_concordance_summary),
                     "reproducibility_link": reproducibility_plots_dir + "/sample_df_targets_only.tsv",
-                    "zip_zip_reproducibility_names": zip(bp_concordance_input_files, bp_concordance_filtered_plots, bp_concordance_raw_data_files),
+                    "zip_zip_reproducibility_names": zip(bp_concordance_input_files, bp_concordance_filtered_plots, bp_concordance_raw_data_files, bp_concordance_maf_plots),
                     "purity_amp_plot": purity_plots_dir + "/purity_series_Amplifications.png",
                     "purity_del_plot": purity_plots_dir + "/purity_series_Deletions.png",
                     "purity_amp_summary": render_purity_summary_html(purity_amp_summary),

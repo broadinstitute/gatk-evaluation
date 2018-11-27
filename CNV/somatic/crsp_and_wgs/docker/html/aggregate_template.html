@@ -9,7 +9,7 @@
 <h1>GATK CNV Evaluation</h1>
 <h2> GATK Docker: {{ gatk_docker }} </h2>
 <h2> Eval Docker: {{ eval_docker }} </h2>
-<h3>Combine Tracks CNV Postprocessing applied.</h3>
+<h3>ModelSegments Postprocessing applied.</h3>
 <h2>Reproducibility</h2>
 <p>
     Two technical replicates of HCC1143 (two distinct libraries from one sample), a 100% purity tumor, were used to assess the repeatability of GATK in the context of the current sequencing process.  Each replicate is used as a case sample for this assessment.  The 2D histogram below was created by comparing segment means at each target.  This evaluation is attempting to quantify the noise of the entire pipeline, from sequencing through the generation of the copy ratio profile.  Ideally, all results would lie on the y=x line and RMSE would be zero.
@@ -103,7 +103,7 @@ Samples for which the methods disagreed on the ploidy have gone through an adjus
     </tr>
     {% for t in zip_zip_reproducibility_names %}
     <tr>
-        <td width="0.5" align="center">{{ t.0 }} (<a href="{{ t.2 }}" >Plot Data</a>)<img width="95%" src="{{ t.1 }}" /></td>
+        <td width="0.5" align="center">{{ t.0 }} (<a href="{{ t.2 }}" >Plot Data</a>)<img width="95%" src="{{ t.1 }}" /><img width="95%" src="{{ t.3 }}" /></td>
     </tr>
     {% endfor %}
 </table>
