@@ -1,68 +1,79 @@
+import numpy as np
+
 from callset import Callset
 from callset import EventType
 from interval import Interval
 from interval_collection import IntervalCollection
 from evaluation_results import EvaluationResult
+from filtering import BinningFilteringStrategy, CallsetFilter
 
 class Evaluator:
     """
     Computes a confusion matrix of a generated callset given a truth callset on an array of samples
     """
 
-    def __init__(self, evaluation_name: str, considered_intervals: IntervalCollection, blacklisted_intervals_truth: IntervalCollection, samples_to_evaluate: list):
+    def __init__(self, evaluation_name: str, considered_intervals: IntervalCollection,
+                 blacklisted_intervals_truth: IntervalCollection, samples_to_evaluate: list,
+                 callset_filter_names: list, callset_filter_max_values: list, callset_filter_num_bins: list):
         self.evaluation_name = evaluation_name
         self.considered_intervals = considered_intervals
         self.blacklisted_intervals_truth = blacklisted_intervals_truth
         self.samples = samples_to_evaluate
+        binning_strategy = BinningFilteringStrategy(attributes=callset_filter_names, attributes_min_values=np.zeros(len(callset_filter_names)).tolist(),
+                                                    attributes_max_values=callset_filter_max_values, attributes_num_bins=callset_filter_num_bins)
+        self.callset_filters = binning_strategy.filter_list
 
     def evaluate_callsets(self, callset_truth: Callset, callset_to_evaluate: Callset):
-        evaluation_result = EvaluationResult()
+        evaluation_result = EvaluationResult(self.callset_filters)
         # we assume that everything marked NO_CALL in the truth callset is a reference allele
-        for sample in self.samples:
-            for interval in self.considered_intervals.interval_list:
+        for call_filter in self.callset_filters:
+            evaluation_result.current_filter = str(call_filter)
+            callset_to_evaluate.filter_callset(call_filter)
+            for sample in self.samples:
+                for interval in self.considered_intervals.interval_list:
 
-                # Exclude intervals that were blacklisted while producing the truth callset from evaluation
-                # TODO Check for partial overlap and keep it
-                if (len(self.blacklisted_intervals_truth.find_intersecting_interval_indices(interval)) > 0):
-                    continue
+                    # Exclude intervals that were blacklisted while producing the truth callset from evaluation
+                    # TODO Check for partial overlap and keep it
+                    if (len(self.blacklisted_intervals_truth.find_intersecting_interval_indices(interval)) > 0):
+                        continue
 
-                truth_calls = callset_truth.find_intersection_with_interval(interval, sample) # this returns a list of pairs (interval, event_type)
-                eval_calls = callset_to_evaluate.find_intersection_with_interval(interval, sample)
-                assert (len(truth_calls) > 0 and len(eval_calls) > 0)
-                assert (truth_calls[0][0].start == interval.start and eval_calls[0][0].start == interval.start)
-                assert (truth_calls[-1][0].end == interval.end and eval_calls[-1][0].end == interval.end)
-                current_position = interval.start
-                truth_calls_current_index = 0
-                eval_calls_current_index = 0
+                    truth_calls = callset_truth.find_intersection_with_interval(interval, sample) # this returns a list of pairs (interval, event_type)
+                    eval_calls = callset_to_evaluate.find_intersection_with_interval(interval, sample)
+                    assert (len(truth_calls) > 0 and len(eval_calls) > 0)
+                    assert (truth_calls[0][0].start == interval.start and eval_calls[0][0].start == interval.start)
+                    assert (truth_calls[-1][0].end == interval.end and eval_calls[-1][0].end == interval.end)
+                    current_position = interval.start
+                    truth_calls_current_index = 0
+                    eval_calls_current_index = 0
 
-                while (current_position < interval.end):
-                    truth_call = truth_calls[truth_calls_current_index][1]
-                    eval_call = eval_calls[eval_calls_current_index][1]
-                    truth_end = truth_calls[truth_calls_current_index][0].end
-                    eval_end = eval_calls[eval_calls_current_index][0].end
+                    while (current_position < interval.end):
+                        truth_call = truth_calls[truth_calls_current_index][1]
+                        eval_call = eval_calls[eval_calls_current_index][1]
+                        truth_end = truth_calls[truth_calls_current_index][0].end
+                        eval_end = eval_calls[eval_calls_current_index][0].end
 
-                    if (truth_end == eval_end):
-                        Evaluator.__evaluate_single_interval_and_update_results(interval=Interval(interval.chrom, current_position, truth_end),
-                                                                                truth_call=truth_call,
-                                                                                eval_call=eval_call,
-                                                                                evaluation_result=evaluation_result)
-                        current_position = truth_end
-                        truth_calls_current_index += 1
-                        eval_calls_current_index += 1
-                    elif (truth_end < eval_end):
-                        Evaluator.__evaluate_single_interval_and_update_results(interval=Interval(interval.chrom, current_position, truth_end),
-                                                                                truth_call=truth_call,
-                                                                                eval_call=eval_call,
-                                                                                evaluation_result=evaluation_result)
-                        current_position = truth_end
-                        truth_calls_current_index += 1
-                    elif (truth_end > eval_end):
-                        Evaluator.__evaluate_single_interval_and_update_results(interval=Interval(interval.chrom, current_position, eval_end),
-                                                                                truth_call=truth_call,
-                                                                                eval_call=eval_call,
-                                                                                evaluation_result=evaluation_result)
-                        current_position = eval_end
-                        eval_calls_current_index += 1
+                        if (truth_end == eval_end):
+                            Evaluator.__evaluate_single_interval_and_update_results(interval=Interval(interval.chrom, current_position, truth_end),
+                                                                                    truth_call=truth_call,
+                                                                                    eval_call=eval_call,
+                                                                                    evaluation_result=evaluation_result)
+                            current_position = truth_end
+                            truth_calls_current_index += 1
+                            eval_calls_current_index += 1
+                        elif (truth_end < eval_end):
+                            Evaluator.__evaluate_single_interval_and_update_results(interval=Interval(interval.chrom, current_position, truth_end),
+                                                                                    truth_call=truth_call,
+                                                                                    eval_call=eval_call,
+                                                                                    evaluation_result=evaluation_result)
+                            current_position = truth_end
+                            truth_calls_current_index += 1
+                        elif (truth_end > eval_end):
+                            Evaluator.__evaluate_single_interval_and_update_results(interval=Interval(interval.chrom, current_position, eval_end),
+                                                                                    truth_call=truth_call,
+                                                                                    eval_call=eval_call,
+                                                                                    evaluation_result=evaluation_result)
+                            current_position = eval_end
+                            eval_calls_current_index += 1
         return evaluation_result
 
     @staticmethod
