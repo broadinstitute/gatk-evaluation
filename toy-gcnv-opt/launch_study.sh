@@ -3,7 +3,7 @@
 # stop script if there is an error
 set -e
 
-ADVISOR_SERVER="127.0.0.1:8001"
+ADVISOR_SERVER="http://127.0.0.1:8001"
 CROMWELL_SERVER="https://cromwell-v36.dsde-methods.broadinstitute.org"
 STUDY_NAME="toy-gCNV-opt"
 ALGORITHM="BayesianOptimization"
