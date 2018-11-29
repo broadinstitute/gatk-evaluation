@@ -4,7 +4,7 @@
 set -e
 
 ADVISOR_SERVER="127.0.0.1:8001"
-CROMWELL_SERVER="https://cromwell-v34.dsde-methods.broadinstitute.org"
+CROMWELL_SERVER="https://cromwell-v36.dsde-methods.broadinstitute.org"
 STUDY_NAME="toy-gCNV-opt"
 ALGORITHM="BayesianOptimization"
 
@@ -14,7 +14,7 @@ docker run \
     -v $PWD/workflow.wdl:/workflow.wdl \
     -v $PWD/template.json:/template.json \
     -v $PWD/scan.json:/scan.json \
-    -it gatk-evaluation/pipeline-optimizer:test \
+    -it us.gcr.io/broad-dsde-methods/gatk-evaluation:pipeline-optimizer \
     python2 /launch_study.py \
         --advisor_server ${ADVISOR_SERVER} \
         --cromwell_server ${CROMWELL_SERVER} \
