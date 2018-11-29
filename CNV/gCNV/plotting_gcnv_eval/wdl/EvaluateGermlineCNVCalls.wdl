@@ -39,6 +39,10 @@ task EvaluateCalls {
     File truth_bed_sample_ids
     File padded_intervals
     String gcnv_eval_script
+    
+    Array[String] callset_filter_names = ['QS']
+    Array[Float] callset_filter_max_values = [150]
+    Array[Int] callset_filter_num_bins = [10]
 
     #Runtime parameters
     String gcnv_evaluation_docker
@@ -60,7 +64,9 @@ task EvaluateCalls {
           --sorted_truth_calls_bed ${truth_bed_sample_ids} \
           --padded_intervals ${padded_intervals} \
           --confusion_matrix_output confusion_values.tsv \
-          --f_measure_output_file f1_score.tsv
+          --callset_filter_names ${sep=' ' callset_filter_names} \
+          --callset_filter_max_values ${sep=' ' callset_filter_max_values} \
+          --callset_filter_num_bins ${sep=' ' callset_filter_num_bins}
     >>>
 
     runtime {

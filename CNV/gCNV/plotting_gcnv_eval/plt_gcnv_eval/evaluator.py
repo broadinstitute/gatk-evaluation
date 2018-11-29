@@ -27,7 +27,7 @@ class Evaluator:
         evaluation_result = EvaluationResult(self.callset_filters)
         # we assume that everything marked NO_CALL in the truth callset is a reference allele
         for call_filter in self.callset_filters:
-            evaluation_result.current_filter = str(call_filter)
+            evaluation_result.current_filter_name = str(call_filter)
             callset_to_evaluate.filter_callset(call_filter)
             for sample in self.samples:
                 for interval in self.considered_intervals.interval_list:

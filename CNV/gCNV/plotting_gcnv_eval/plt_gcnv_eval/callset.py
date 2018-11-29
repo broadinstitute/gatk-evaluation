@@ -65,7 +65,7 @@ class Callset(ABC):
         filter_lambda = call_filter.filter_binary_lambda
         for sample in self.sample_names:
             intervals, calls = self.sample_to_calls_map[sample]
-            self.indices_filtered[sample] = set([i for i in range(len(intervals.interval_list)) if filter_lambda(calls[i].call_attributes)])
+            self.filtered_indices[sample] = set([i for i in range(len(intervals.interval_list)) if filter_lambda(calls[i].call_attributes)])
 
     def find_intersection_with_interval(self, interval: Interval, sample: str):
         #return map from Interval to EventType
