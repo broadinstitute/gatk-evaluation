@@ -9,8 +9,8 @@ while getopts "d:a:c:n:l:w:t:s:" option; do
 		d) DOCKER="$OPTARG" ;;
 		a) ADVISOR_SERVER="$OPTARG" ;;
 		c) CROMWELL_SERVER="$OPTARG" ;;
-        n) STUDY_NAME="$OPTARG" ;;
-        l) ALGORITHM="$OPTARG" ;;
+		n) STUDY_NAME="$OPTARG" ;;
+		l) ALGORITHM="$OPTARG" ;;
 		w) WORKFLOW_WDL="$OPTARG" ;;
 		t) TEMPLATE_JSON="$OPTARG" ;;
 		s) SCAN_JSON="$OPTARG" ;;
@@ -46,4 +46,4 @@ docker run \
         --workflow_wdl /workflow.wdl \
         --template_json /template.json \
         --scan_json /scan.json \
-        --womtool_path /usr/local/bin/womtool/womtool-36.jar
+        --womtool_path /usr/local/bin/womtool/womtool-36.jar 2>&1 | tee -a launch_study.log
