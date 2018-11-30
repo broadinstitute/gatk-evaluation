@@ -37,7 +37,7 @@ def calculate_metric(template_values, scan_values):
     
     time.sleep(5)
     print 'Waiting for workflow to complete...'
-    CromwellAPI.wait([workflow_id], cromwell_auth, timeout_minutes=120, poll_interval_seconds=15)
+    CromwellAPI.wait([workflow_id], cromwell_auth, timeout_minutes=1440, poll_interval_seconds=120)
     
     metadata = requests.post(url=cromwell_auth.url + CromwellAPI._metadata_endpoint.format(uuid=workflow_id),
                              auth=cromwell_auth.auth,
