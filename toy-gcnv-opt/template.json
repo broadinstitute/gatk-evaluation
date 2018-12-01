@@ -9,7 +9,7 @@
   "EvaluateCNVGermlineCohortWorkflow.cpu_for_germline_cnv_caller": "8",
   "EvaluateCNVGermlineCohortWorkflow.do_explicit_gc_correction": "True",
   "EvaluateCNVGermlineCohortWorkflow.gatk_docker": "us.gcr.io/broad-dsde-methods/broad-gatk-snapshots/gatk:sl_toy_gcnv_opt",
-  "EvaluateCNVGermlineCohortWorkflow.gcnv_evaluation_docker": "us.gcr.io/broad-dsde-methods/broad-gatk-snapshots:gcnv-eval",
+  "EvaluateCNVGermlineCohortWorkflow.gcnv_evaluation_docker": "us.gcr.io/broad-dsde-methods/broad-gatk-snapshots:gcnv_evaluation_sfari",
   "EvaluateCNVGermlineCohortWorkflow.gcnv_p_active": "0.01",
   "EvaluateCNVGermlineCohortWorkflow.gcnv_p_alt": "0.001",
   "EvaluateCNVGermlineCohortWorkflow.intervals": "gs://broad-dsde-methods-cnv-test-data/germline/resources/NimbleGenEZ2Tiled_hg19_v2.interval_list",
