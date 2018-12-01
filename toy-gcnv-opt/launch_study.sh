@@ -10,7 +10,7 @@ ALGORITHM="BayesianOptimization"
 
 docker run \
     --network host \
-    -v $PWD/../pipeline-optimizer/launch_study.py:/launch_study.py \
+    -v $PWD/launch_study.py:/launch_study.py \
     -v $PWD/workflow.wdl:/workflow.wdl \
     -v $PWD/template.json:/template.json \
     -v $PWD/scan.json:/scan.json \
