@@ -344,7 +344,7 @@
   "EvaluateCNVGermlineCohortWorkflow.ploidy_global_psi_scale": "0.05",
   "EvaluateCNVGermlineCohortWorkflow.ploidy_mean_bias_standard_deviation": "1.0",
   "EvaluateCNVGermlineCohortWorkflow.ploidy_sample_psi_scale": "0.001",
-  "EvaluateCNVGermlineCohortWorkflow.preemptible_attempts": "2",
+  "EvaluateCNVGermlineCohortWorkflow.preemptible_attempts": "1",
   "EvaluateCNVGermlineCohortWorkflow.ref_copy_number_autosomal_contigs": "2",
   "EvaluateCNVGermlineCohortWorkflow.ref_fasta_dict": "gs://broad-references/hg19/v0/Homo_sapiens_assembly19.dict",
   "EvaluateCNVGermlineCohortWorkflow.ref_fasta_fai": "gs://broad-references/hg19/v0/Homo_sapiens_assembly19.fasta.fai",
