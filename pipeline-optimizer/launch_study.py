@@ -6,6 +6,7 @@ import os
 import tempfile
 import requests
 import time
+import numpy as np
 import advisor_client.client as AdvisorClient
 from cromwell_tools.cromwell_api import CromwellAPI
 from cromwell_tools.cromwell_auth import CromwellAuth
@@ -20,6 +21,8 @@ parser.add_argument('--template_json')
 parser.add_argument('--scan_json')
 parser.add_argument('--womtool_path')
 args = parser.parse_args()
+
+bad_value = None
 
 def calculate_metric(template_values, scan_values):
     merged_values = {k: v for (k, v) in (template_values.items() + scan_values.items())}
@@ -37,15 +40,24 @@ def calculate_metric(template_values, scan_values):
     
     time.sleep(5)
     print 'Waiting for workflow to complete...'
-    CromwellAPI.wait([workflow_id], cromwell_auth, timeout_minutes=1440, poll_interval_seconds=120)
     
-    metadata = requests.post(url=cromwell_auth.url + CromwellAPI._metadata_endpoint.format(uuid=workflow_id),
-                             auth=cromwell_auth.auth,
-                             headers=cromwell_auth.header)
+    try:
+        if np.random.choice([True, False], p=[0.8, 0.2]):
+            CromwellAPI.wait([workflow_id], cromwell_auth, timeout_minutes=1440, poll_interval_seconds=5)
+            
+            metadata = requests.post(url=cromwell_auth.url + CromwellAPI._metadata_endpoint.format(uuid=workflow_id),
+                                     auth=cromwell_auth.auth,
+                                     headers=cromwell_auth.header)
 
-    workflow_name = metadata.json()['workflowName']
-    objective_value = metadata.json()['outputs']['{}.objective_value'.format(workflow_name)]
-    return objective_value 
+            workflow_name = metadata.json()['workflowName']
+            objective_value = metadata.json()['outputs']['{}.objective_value'.format(workflow_name)]
+            return objective_value
+        else:
+            print "Random bad value..."
+            return bad_value
+    except:
+        print "Cromwell exception, returning bad value..."
+        return bad_value
 
 
 def main():
@@ -65,11 +77,19 @@ def main():
     print study
 
     for i in range(max_num_trials):
-        trial = client.get_suggestions(study.name)[0]
-        scan_values = json.loads(trial.parameter_values)
-        metric = calculate_metric(template_values, scan_values)
-        trial = client.complete_trial_with_one_metric(trial, metric)
-        print trial
+        try:
+            trial = client.get_suggestions(study.name)[0]
+            print trial
+            scan_values = json.loads(trial.parameter_values)
+            metric = calculate_metric(template_values, scan_values)
+            if metric is bad_value:
+                print "Problem with trial, skipping..."
+                continue
+            trial = client.complete_trial_with_one_metric(trial, metric)
+            print "Trial completed."
+        except:
+            print "Problem with trial, skipping..."
+            continue
 
     best_trial = client.get_best_trial(study.name)
     print 'Best trial: {}'.format(best_trial)
