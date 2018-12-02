@@ -46,4 +46,4 @@ docker run \
         --workflow_wdl /workflow.wdl \
         --template_json /template.json \
         --scan_json /scan.json \
-        --womtool_path /usr/local/bin/womtool/womtool-36.jar
+        --womtool_path /usr/local/bin/womtool/womtool-36.jar 2>&1 | tee -a launch_study.log

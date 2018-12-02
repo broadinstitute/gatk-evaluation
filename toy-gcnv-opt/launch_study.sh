@@ -4,7 +4,7 @@
 set -e
 
 ADVISOR_SERVER="http://127.0.0.1:8001"
-CROMWELL_SERVER="https://cromwell-v34.dsde-methods.broadinstitute.org"
+CROMWELL_SERVER="https://cromwell-v33.dsde-methods.broadinstitute.org"
 STUDY_NAME="toy-gCNV-opt"
 ALGORITHM="BayesianOptimization"
 
@@ -23,4 +23,4 @@ docker run \
         --workflow_wdl /workflow.wdl \
         --template_json /template.json \
         --scan_json /scan.json \
-        --womtool_path /usr/local/bin/womtool/womtool-36.jar
+        --womtool_path /usr/local/bin/womtool/womtool-36.jar 2>&1 | tee -a launch_study.log

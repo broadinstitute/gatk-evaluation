@@ -6,7 +6,8 @@ import os
 import tempfile
 import requests
 import time
-import numpy as np
+import sys
+import logging
 import advisor_client.client as AdvisorClient
 from cromwell_tools.cromwell_api import CromwellAPI
 from cromwell_tools.cromwell_auth import CromwellAuth
@@ -24,6 +25,21 @@ args = parser.parse_args()
 
 bad_value = None
 
+def setup_custom_logger(name):
+    formatter = logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(message)s',
+                                  datefmt='%Y-%m-%d %H:%M:%S')
+    handler = logging.FileHandler('log.txt', mode='w')
+    handler.setFormatter(formatter)
+    screen_handler = logging.StreamHandler(stream=sys.stdout)
+    screen_handler.setFormatter(formatter)
+    logger = logging.getLogger(name)
+    logger.setLevel(logging.DEBUG)
+    logger.addHandler(handler)
+    logger.addHandler(screen_handler)
+    return logger
+
+logger = setup_custom_logger('logger')
+
 def calculate_metric(template_values, scan_values):
     merged_values = {k: v for (k, v) in (template_values.items() + scan_values.items())}
     
@@ -36,10 +52,10 @@ def calculate_metric(template_values, scan_values):
         submit = CromwellAPI.submit(cromwell_auth, w, j)
         
     workflow_id = submit.json()['id']
-    print 'Submitted workflow:', workflow_id
+    logger.info('Submitted workflow: ' + workflow_id)
     
     time.sleep(10)
-    print 'Waiting for workflow to complete...'
+    logger.info('Waiting for workflow to complete...')
     
     try:
         CromwellAPI.wait([workflow_id], cromwell_auth, timeout_minutes=1440, poll_interval_seconds=300)
@@ -51,12 +67,12 @@ def calculate_metric(template_values, scan_values):
         objective_value = metadata.json()['outputs']['{}.objective_value'.format(workflow_name)]
         return objective_value
     except:
-        print "Cromwell exception, returning bad value..."
+        logger.info('Cromwell exception, returning bad value...')
         return bad_value
 
 
 def main():
-    print 'Validating workflow...'
+    logger.info('Validating workflow...')
     CromwellAPI.validate_workflow(args.workflow_wdl, args.womtool_path)
 
     client = AdvisorClient.AdvisorClient(endpoint=args.advisor_server)
@@ -69,25 +85,25 @@ def main():
         template_values = json.load(f)
 
     study = client.get_or_create_study(args.study_name, study_configuration, algorithm=args.algorithm)
-    print study
+    logger.info(study)
 
     for i in range(max_num_trials):
         try:
             trial = client.get_suggestions(study.name)[0]
-            print trial
+            logger.info(trial)
             scan_values = json.loads(trial.parameter_values)
             metric = calculate_metric(template_values, scan_values)
             if metric is bad_value:
-                print "Problem with trial, skipping..."
+                logger.info('Problem with trial, skipping...')
                 continue
             trial = client.complete_trial_with_one_metric(trial, metric)
-            print "Trial completed."
+            logger.info('Trial completed.')
         except:
-            print "Problem with trial, skipping..."
+            logger.info('Problem with trial, skipping...')
             continue
 
     best_trial = client.get_best_trial(study.name)
-    print 'Best trial: {}'.format(best_trial)
+    logger.info('Best trial: {}'.format(best_trial))
 
 if __name__ == '__main__':
     main()
