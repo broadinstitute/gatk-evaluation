@@ -941,17 +941,16 @@ task EvaluateCalls {
 
     Int machine_mem_mb = select_first([mem_gb, 2]) * 1000
 
-    String dollar = "$" #WDL workaround for using array[@], see https://github.com/broadinstitute/cromwell/issues/1819
     command <<<
         mkdir plots
 
         python ${gcnv_eval_script} \
-          --output_dir plots \
+          --output_dir "./plots/" \
           --gcnv_segment_vcfs ${sep=' ' genotyped_segments_vcfs} \
           --sorted_truth_calls_bed ${truth_bed_sample_ids} \
           --padded_intervals ${padded_intervals} \
-          --confusion_matrix_output confusion_values.tsv \
-          --f_measure_output_file f1_score.tsv
+          --confusion_matrix_output "confusion_values.tsv" \
+          --f_measure_output_file "f1_score.tsv"
     >>>
 
     runtime {
@@ -965,7 +964,7 @@ task EvaluateCalls {
     output {
         Float f1_score = read_float("f1_score.tsv")
         File confusion_values = "confusion_values.tsv"
-        Array[File] metrics_plots = glob("plots/*")
+        Array[File] metrics_plots = glob("./plots/*")
 
     }
 }
