@@ -8,9 +8,11 @@ import requests
 import time
 import sys
 import logging
+import numpy as np
 import advisor_client.client as AdvisorClient
 from cromwell_tools.cromwell_api import CromwellAPI
 from cromwell_tools.cromwell_auth import CromwellAuth
+from cromwell_tools.cromwell_api import WorkflowFailedException
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--advisor_server')
@@ -24,6 +26,23 @@ parser.add_argument('--womtool_path')
 args = parser.parse_args()
 
 bad_value = None
+
+from urllib3.util.retry import Retry
+from requests.adapters import HTTPAdapter
+
+def retry_session(retries, session=None, backoff_factor=0.3, status_forcelist=(500, 502, 503, 504)):
+    session = session or requests.Session()
+    retry = Retry(
+        total=retries,
+        read=retries,
+        connect=retries,
+        backoff_factor=backoff_factor,
+        status_forcelist=status_forcelist,
+    )
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount('http://', adapter)
+    session.mount('https://', adapter)
+    return session
 
 def setup_custom_logger(name):
     formatter = logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(message)s',
@@ -57,24 +76,37 @@ def calculate_metric(template_values, scan_values):
     time.sleep(5)
     logger.info('Waiting for workflow to complete...')
     
-    try:
-        if np.random.choice([True, False], p=[0.8, 0.2]):
-            CromwellAPI.wait([workflow_id], cromwell_auth, timeout_minutes=1440, poll_interval_seconds=5)
-            
-            metadata = requests.post(url=cromwell_auth.url + CromwellAPI._metadata_endpoint.format(uuid=workflow_id),
-                                     auth=cromwell_auth.auth,
-                                     headers=cromwell_auth.header)
-
+    if np.random.choice([True, False], p=[0.8, 0.2]):
+        try:
+            while True:
+                try:
+                    CromwellAPI.wait([workflow_id], cromwell_auth, timeout_minutes=600, poll_interval_seconds=20, verbose=False)
+                    response = CromwellAPI.status(workflow_id, cromwell_auth)
+                    status = response.json()['status']
+                    if status == 'Succeeded':
+                        logger.info('Workflow succeeded...')
+                        break
+                except WorkflowFailedException:
+                    logger.info('Workflow failed, returning bad value...')
+                    return bad_value
+                except Exception as e:
+                    logger.info(e)
+                    logger.info('Cromwell exception, retrying wait and status check...')
+            logger.info('Getting metadata...')
+            session = retry_session(retries=10)
+            metadata = session.post(url=cromwell_auth.url + CromwellAPI._metadata_endpoint.format(uuid=workflow_id),
+                                    auth=cromwell_auth.auth,
+                                    headers=cromwell_auth.header)
             workflow_name = metadata.json()['workflowName']
             objective_value = metadata.json()['outputs']['{}.objective_value'.format(workflow_name)]
             return objective_value
-        else:
-            logger.info('Random bad value...')
+        except Exception as e:
+            logger.info(e)
+            logger.info('Cromwell exception during metadata retrieval, returning bad value...')
             return bad_value
-    except:
-        logger.info('Cromwell exception, returning bad value...')
+    else:
+        logger.info('Random bad value...')
         return bad_value
-
 
 def main():
     logger.info('Validating workflow...')
@@ -99,11 +131,13 @@ def main():
             scan_values = json.loads(trial.parameter_values)
             metric = calculate_metric(template_values, scan_values)
             if metric is bad_value:
-                logger.info('Problem with trial, skipping...')
+                logger.info('Trial returned bad value, skipping...')
                 continue
             trial = client.complete_trial_with_one_metric(trial, metric)
+            logger.info('Objective value: ' + str(metric))
             logger.info('Trial completed.')
-        except:
+        except Exception as e:
+            logger.info(e)
             logger.info('Problem with trial, skipping...')
             continue
 

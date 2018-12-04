@@ -4,7 +4,7 @@
 set -e
 
 ADVISOR_SERVER="http://127.0.0.1:8001"
-CROMWELL_SERVER="https://cromwell-v33.dsde-methods.broadinstitute.org"
+CROMWELL_SERVER="http://cromwell-v33.dsde-methods.broadinstitute.org"
 STUDY_NAME="toy-gCNV-opt"
 ALGORITHM="BayesianOptimization"
 

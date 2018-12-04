@@ -9,8 +9,8 @@ while getopts "d:a:c:n:l:w:t:s:" option; do
 		d) DOCKER="$OPTARG" ;;
 		a) ADVISOR_SERVER="$OPTARG" ;;
 		c) CROMWELL_SERVER="$OPTARG" ;;
-        n) STUDY_NAME="$OPTARG" ;;
-        l) ALGORITHM="$OPTARG" ;;
+		n) STUDY_NAME="$OPTARG" ;;
+		l) ALGORITHM="$OPTARG" ;;
 		w) WORKFLOW_WDL="$OPTARG" ;;
 		t) TEMPLATE_JSON="$OPTARG" ;;
 		s) SCAN_JSON="$OPTARG" ;;
