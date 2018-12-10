@@ -210,8 +210,8 @@ def create_segments_df_for_comparison_germline_removed(segments_df):
     # Remove possible germline events
     comparison_edit_germline_removed[POSSIBLE_GERMLINE_COL] = comparison_edit_germline_removed[POSSIBLE_GERMLINE_COL].astype('str')
     comparison_edit_germline_removed = comparison_edit_germline_removed[
-        (comparison_edit_germline_removed[POSSIBLE_GERMLINE_COL] == "0" or comparison_edit_germline_removed[POSSIBLE_GERMLINE_COL] == "0.0" or comparison_edit_germline_removed[POSSIBLE_GERMLINE_COL] == "0.")]
-
+        (comparison_edit_germline_removed[POSSIBLE_GERMLINE_COL] == "0") | (comparison_edit_germline_removed[POSSIBLE_GERMLINE_COL] == "0.") | (comparison_edit_germline_removed[POSSIBLE_GERMLINE_COL] == "0.0")]
+    
     return comparison_edit_germline_removed
 
 
