@@ -19,6 +19,8 @@ GUESS_CR_COLUMN_NAME = "guess_cr"
 INPUT_GUESS_CR_COLUMN_NAME = "LOG2_COPY_RATIO_POSTERIOR_50"
 IS_LOG2_GUESS_CR = True
 MULTI_VALUE_SEPARATOR = "__"
+MAX_COPY_NUMBER_FOR_DELETION = 1
+MIN_COPY_NUMBER_FOR_AMPLIFICATION = 3
 
 
 def more_than_one_value(v):
@@ -193,13 +195,13 @@ def run_purity_plotting(input_tsvs, output_dir):
         segs_gt_to_consider = segs_df[~segs_df["CALL"].isnull() & (segs_df["CONTIG"] != "2")]
 
         ## Amps
-        tp = segs_gt_to_consider[(segs_gt_to_consider["CALL"] == "+") & (segs_gt_to_consider[GT_CN_COLUMN_NAME] >= 5)]
-        all_gt_amp = segs_gt_to_consider[segs_gt_to_consider[GT_CN_COLUMN_NAME] >= 5]
+        tp = segs_gt_to_consider[(segs_gt_to_consider["CALL"] == "+") & (segs_gt_to_consider[GT_CN_COLUMN_NAME] >= MIN_COPY_NUMBER_FOR_AMPLIFICATION)]
+        all_gt_amp = segs_gt_to_consider[segs_gt_to_consider[GT_CN_COLUMN_NAME] >= MIN_COPY_NUMBER_FOR_AMPLIFICATION]
         sens_amps = float(len(tp)) / float(len(all_gt_amp))
         sens_amps_ci = clopper_pearson(len(tp), len(all_gt_amp))
         sens_amps_N = len(all_gt_amp)
 
-        fp = segs_gt_to_consider[(segs_gt_to_consider["CALL"] == "+") & (segs_gt_to_consider[GT_CN_COLUMN_NAME] <= 4)]
+        fp = segs_gt_to_consider[(segs_gt_to_consider["CALL"] == "+") & (segs_gt_to_consider[GT_CN_COLUMN_NAME] < MIN_COPY_NUMBER_FOR_AMPLIFICATION)]
         prec_amps = float(len(tp)) / float(len(tp) + len(fp))
         prec_amps_ci = clopper_pearson(len(tp), (len(tp) + len(fp)))
         prec_amps_N = len(tp) + len(fp)
@@ -220,14 +222,14 @@ def run_purity_plotting(input_tsvs, output_dir):
 
         ## Dels
         tp_del = segs_gt_to_consider[
-            (segs_gt_to_consider["CALL"] == "-") & (segs_gt_to_consider[GT_CN_COLUMN_NAME] <= 2)]
-        all_gt_del = segs_gt_to_consider[segs_gt_to_consider[GT_CN_COLUMN_NAME] <= 2]
+            (segs_gt_to_consider["CALL"] == "-") & (segs_gt_to_consider[GT_CN_COLUMN_NAME] <= MAX_COPY_NUMBER_FOR_DELETION)]
+        all_gt_del = segs_gt_to_consider[segs_gt_to_consider[GT_CN_COLUMN_NAME] <= MAX_COPY_NUMBER_FOR_DELETION]
         sens_dels = float(len(tp_del)) / float(len(all_gt_del))
         sens_dels_ci = clopper_pearson(len(tp_del), len(all_gt_del))
         sens_dels_N = len(all_gt_del)
 
         fp_del = segs_gt_to_consider[
-            (segs_gt_to_consider["CALL"] == "-") & (segs_gt_to_consider[GT_CN_COLUMN_NAME] > 2)]
+            (segs_gt_to_consider["CALL"] == "-") & (segs_gt_to_consider[GT_CN_COLUMN_NAME] > MAX_COPY_NUMBER_FOR_DELETION)]
         
         if (len(tp_del) + len(fp_del)) == 0:
             prec_dels = 1.0
