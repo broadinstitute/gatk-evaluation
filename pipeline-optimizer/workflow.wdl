@@ -23,7 +23,7 @@ task ExampleMetricsTask {
     >>>
 
     runtime {
-        docker: "gatk-evaluation/pipeline-optimizer:test"
+        docker: "us.gcr.io/broad-dsde-methods/gatk-evaluation:pipeline-optimizer"
         memory: "2000 MB"
         disks: "local-disk 100 HDD"
         preemptible: 3
