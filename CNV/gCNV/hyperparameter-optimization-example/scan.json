@@ -1,0 +1,30 @@
+{
+    "goal": "MAXIMIZE",
+    "maxTrials": 25,
+    "randomInitTrials": 3,
+    "params": [{
+        "parameterName": "EvaluateCNVGermlineCohortWorkflow.gcnv_interval_psi_scale",
+        "type": "DOUBLE",
+        "minValue": 0.0001,
+        "maxValue": 0.1,
+        "scalingType": "LINEAR"
+    }, {
+        "parameterName": "EvaluateCNVGermlineCohortWorkflow.gcnv_log_mean_bias_standard_deviation",
+        "type": "DOUBLE",
+        "minValue": 0.1,
+        "maxValue": 100,
+        "scalingType": "LINEAR"
+    }, {
+        "parameterName": "EvaluateCNVGermlineCohortWorkflow.gcnv_sample_psi_scale",
+        "type": "DOUBLE",
+        "minValue": 0.001,
+        "maxValue": 0.1,
+        "scalingType": "LINEAR"
+    }, {
+        "parameterName": "EvaluateCNVGermlineCohortWorkflow.gcnv_init_ard_rel_unexplained_variance",
+        "type": "DOUBLE",
+        "minValue": 0.01,
+        "maxValue": 1.0,
+        "scalingType": "LINEAR"
+    }]
+}
