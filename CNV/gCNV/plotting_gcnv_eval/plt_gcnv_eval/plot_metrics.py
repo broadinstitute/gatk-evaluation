@@ -1,7 +1,12 @@
 import matplotlib 
 import numpy as np
+import pandas as pd
+import math
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+
+import io_plt
+
 
 def plot_number_of_events_distribution(output_file: str, gcnv_segment_vcfs: list):
     variant_num_list = []
@@ -12,7 +17,8 @@ def plot_number_of_events_distribution(output_file: str, gcnv_segment_vcfs: list
     plt.hist(variant_num_list, bins=100, edgecolor='black', linewidth=1)
     plt.xlabel("Number of segments")
     fig.savefig(output_file, dpi=120)
-    print("Mean number of segments in each sample: %d" % (np.mean(np.array(variant_num_list))))
+    io_plt.log("Mean number of segments in each sample: %d" % (np.mean(np.array(variant_num_list))))
+
 
 def count_num_variants(vcf_file):
     num_vars = 0
@@ -22,10 +28,11 @@ def count_num_variants(vcf_file):
                 num_vars += 1
     return num_vars
 
+
 def plot_ard_components(models_dir, num_shards):
     num_plots_per_row = 4
     num_rows = math.ceil(num_shards/num_plots_per_row)
-    plt.figure(figsize=(20,20))
+    plt.figure(figsize=(20, 20))
     for i in range(num_shards):
         ard_file = models_dir + "/shard-" + str(i) + "/mu_ard_u_log__.tsv"
         ard_df = pd.read_csv(open(ard_file, 'r'), comment="@", sep='\t', header=None)

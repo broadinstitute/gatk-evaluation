@@ -10,6 +10,7 @@ workflow EvaluateGermlineCNVCalls {
     File truth_bed_sample_ids
     File padded_intervals
     String gcnv_evaluation_docker
+    File blacklisted_intervals_truth
 
     ##################################
     #### optional basic arguments ####
@@ -23,12 +24,12 @@ workflow EvaluateGermlineCNVCalls {
             truth_bed_sample_ids = truth_bed_sample_ids,
             padded_intervals = padded_intervals,
             gcnv_evaluation_docker = gcnv_evaluation_docker,
+            blacklisted_intervals_truth = blacklisted_intervals_truth,
             gcnv_eval_script = gcnv_eval_script,
             preemptible_attempts = preemptible_attempts
     }
 
     output {
-        Float f1_score = EvaluateCalls.f1_score
         File confusion_values = EvaluateCalls.confusion_values
         Array[File] metrics_plots = EvaluateCalls.metrics_plots
     }
@@ -39,10 +40,12 @@ task EvaluateCalls {
     File truth_bed_sample_ids
     File padded_intervals
     String gcnv_eval_script
+    File blacklisted_intervals_truth
     
     Array[String] callset_filter_names = ['QS']
     Array[Float] callset_filter_max_values = [150]
     Array[Int] callset_filter_num_bins = [10]
+    String attribute_for_roc_creation = 'QS'
 
     #Runtime parameters
     String gcnv_evaluation_docker
@@ -63,10 +66,12 @@ task EvaluateCalls {
           --gcnv_segment_vcfs ${sep=' ' genotyped_segments_vcfs} \
           --sorted_truth_calls_bed ${truth_bed_sample_ids} \
           --padded_intervals ${padded_intervals} \
+          --blacklisted_intervals_truth ${blacklisted_intervals_truth} \
           --confusion_matrix_output confusion_values.tsv \
           --callset_filter_names ${sep=' ' callset_filter_names} \
           --callset_filter_max_values ${sep=' ' callset_filter_max_values} \
-          --callset_filter_num_bins ${sep=' ' callset_filter_num_bins}
+          --callset_filter_num_bins ${sep=' ' callset_filter_num_bins} \
+          --attribute_for_roc_creation ${attribute_for_roc_creation}
     >>>
 
     runtime {
@@ -78,7 +83,6 @@ task EvaluateCalls {
     }
 
     output {
-        Float f1_score = read_float("f1_score.tsv")
         File confusion_values = "confusion_values.tsv"
         Array[File] metrics_plots = glob("plots/*")
 

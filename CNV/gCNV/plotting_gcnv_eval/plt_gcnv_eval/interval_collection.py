@@ -1,85 +1,121 @@
 from interval import Interval
 import io_plt
 import pandas as pd
-import bisect
+from collections import OrderedDict
+from intervaltree import IntervalTree
+from abc import ABC, abstractmethod
 
-class IntervalCollection:
-    """Collection of genomic intervals"""
 
-    def __init__(self, interval_list: list, header: str=None):
-        self.assert_interval_list_sorted(interval_list)
-        self.header = header
+class LocatableCollection(ABC):
+    """
+    Abstract class for a collection of genomic intervals that allows search and corresponding data.
+    """
+
+    def find_intersection(self, interval: Interval) -> list:
+        """
+
+        Args:
+            interval:
+
+        Returns:
+
+        """
+        interval_tree_for_contig = self.get_interval_tree(interval.chrom)
+        results = interval_tree_for_contig.search(interval.start, interval.end) if interval_tree_for_contig else []
+        return [result.data for result in results]
+
+    @abstractmethod
+    def get_interval_tree(self, contig: str):
+        """
+
+        Args:
+            contig:
+
+        Returns:
+
+        """
+        pass
+
+    @abstractmethod
+    def get_intervals(self):
+        """
+
+        Returns: All intervals contained in this collection
+
+        """
+        pass
+
+
+class IntervalCollection(LocatableCollection):
+    """
+    Concrete class for a collection of genomic intervals only
+    """
+
+    def __init__(self, interval_list: list, header: str = None):
         self.interval_list = interval_list
-        self.last_searched_index = None
+        self.header = header
+        self.ordered_contigs = list(OrderedDict({t.chrom: None for t in self.interval_list}).keys())
+        self.contig_to_intervals_map = {contig: IntervalTree() for contig in self.ordered_contigs}
+        for interval in interval_list:
+            self.contig_to_intervals_map[interval.chrom][interval.start:interval.end] = None
 
     @classmethod
     def read_interval_list(cls, interval_list_file):
         header = io_plt.read_comments_lines(interval_list_file)
         intervals_df = pd.read_csv(open(interval_list_file, 'r'), comment="@", delimiter="\t",
-                                   usecols=[0,1,2], header=None, names=["CONTIG","START","END"],
+                                   usecols=[0, 1, 2], header=None, names=["CONTIG", "START", "END"],
                                    dtype={"CONTIG": str, "START": int, "END": int})
         intervals_series = intervals_df.apply(lambda x: Interval(str(x.CONTIG), int(x.START), int(x.END)), axis=1)
         interval_list = intervals_series.tolist()
         return cls(interval_list=interval_list, header=header)
 
-    @staticmethod
-    def assert_interval_list_sorted(interval_list):
-        for index in range(len(interval_list) - 1):
-            assert (interval_list[index].chrom != interval_list[index+1].chrom or interval_list[index].start < interval_list[index+1].start), \
-                     ("Interval list is not sorted for intervals Interval(%s) and Interval(%s)" % (str(interval_list[index]), str(interval_list[index+1])))
+    def get_interval_tree(self, contig: str):
+        return self.contig_to_intervals_map.get(contig, [])
 
-    def write_interval_list(self, output_file_path: str, output_file_name):
-        with open(output_file_path + output_file_name, 'w') as output:
-            if (self.header != None):
-                output.write(self.header)
-                output.write("\n")
-            for interval in self.interval_list:
-                output.write(interval.to_interval_file_string() + "\n")
+    def get_intervals(self):
+        return self.interval_list
 
-    def find_intersecting_interval_indices(self, interval: Interval):
-        if (len(self.interval_list) == 0):
-            return []
-        if (self.last_searched_index == None):
-            return self.__perform_binary_search(interval)
-        else:
-            query_result = self.__extend_left_right(interval, self.last_searched_index)
-            if (not query_result):
-                return self.__perform_binary_search(interval)
-            else:
-                return query_result
 
-    def __perform_binary_search(self, interval: Interval):
-        index = bisect.bisect_left(self.interval_list, interval)
-        if (index < len(self.interval_list) and self.interval_list[index].intersects_with(interval)):
-            last_searched_index = index
-            return self.__extend_left_right(interval, index)
-        else:
-            return []
+class FeatureCollection(LocatableCollection):
+    """
+    Concrete class for a collection of genomic intervals and corresponding genomic features
+    that allows search.
+    """
 
-    def __extend_left_right(self, interval: Interval, intersecting_interval_index: int):
-        indices = []
-        current_index = intersecting_interval_index
-        while (current_index >= 0 and self.interval_list[current_index].intersects_with(interval)):
-            indices.insert(0, current_index)
-            current_index -= 1
-        current_index = intersecting_interval_index + 1
-        while (current_index < len(self.interval_list) and self.interval_list[current_index].intersects_with(interval)):
-            indices.append(current_index)
-            current_index += 1
-        return indices
+    def __init__(self, interval_to_features_dict: OrderedDict):
+        """
 
-    def __eq__(self, other):
-        if (self.header != other.header):
-            return False
+        Args:
+            interval_to_features_dict:
+        """
+        self.interval_list = interval_to_features_dict.keys()
+        self.ordered_contigs = list(OrderedDict({t.chrom: None for t in self.interval_list}).keys())
+        self.contig_to_intervals_map = {contig: IntervalTree() for contig in self.ordered_contigs}
+        for interval in self.interval_list:
+            self.contig_to_intervals_map[interval.chrom][interval.start:interval.end] = \
+                interval_to_features_dict[interval]
 
-        if (len(self.interval_list) != len(other.interval_list)):
-            return False
+    def get_interval_tree(self, contig: str):
+        return self.contig_to_intervals_map.get(contig, [])
 
-        for index, interval in enumerate(self.interval_list):
-            if (interval != other.interval_list[index]):
-                return False
-        return True
+    def get_intervals(self):
+        return self.interval_list
 
-    # This apparently is no longer necessary in Python 3
-    def __ne__(self, other):
-        return not self.__eq__(other)
+    def add_feature(self, interval: Interval, data):
+        self.contig_to_intervals_map[interval.chrom][interval.start, interval.end] = data
+
+    def find_feature_for_interval(self, interval: Interval):
+        tree = self.contig_to_intervals_map[interval.chrom]
+        tree_intervals = tree.search(interval.start, interval.end)
+        assert len(tree_intervals) == 1 and tree_intervals[0].begin == interval.start \
+            and tree_intervals[0].end == interval.end, "There should be exactly one entry in the collection"
+
+        return tree_intervals[0].data
+
+    def get_all_features_matching_criteria(self, criteria) -> list:
+        features_matching_criteria = []
+        for contig in self.ordered_contigs:
+            for tree_interval in self.contig_to_intervals_map.get(contig):
+                if criteria(tree_interval.data):
+                    features_matching_criteria.append(tree_interval.data)
+        return features_matching_criteria
