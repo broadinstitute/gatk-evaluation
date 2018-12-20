@@ -1,5 +1,3 @@
-import numpy as np
-
 from callset import Callset
 from callset import EventType
 from interval import Interval
@@ -40,8 +38,14 @@ class Evaluator:
                     truth_calls = callset_truth.find_intersection_with_interval(interval, sample)
                     eval_calls = callset_to_evaluate.find_intersection_with_interval(interval, sample)
                     assert (len(truth_calls) > 0 and len(eval_calls) > 0)
-                    assert (truth_calls[0][0].start == interval.start and eval_calls[0][0].start == interval.start)
-                    assert (truth_calls[-1][0].end == interval.end and eval_calls[-1][0].end == interval.end)
+                    assert (truth_calls[0][0].start == interval.start and truth_calls[-1][0].end == interval.end), \
+                        "Range of truth callset query(start: %d, end %d) on interval does not match the range of" \
+                        " the query interval %s for sample %s" \
+                        % (truth_calls[0][0].start, truth_calls[-1][0].end, interval, sample)
+                    assert (eval_calls[0][0].start == interval.start and eval_calls[-1][0].end == interval.end), \
+                        "Range of evaluation callset query(start: %d, end %d) on interval does not match the range of" \
+                        " the query interval %s for sample %s" \
+                        % (eval_calls[0][0].start, eval_calls[-1][0].end, interval, sample)
                     current_position = interval.start
                     truth_calls_current_index = 0
                     eval_calls_current_index = 0

@@ -21,7 +21,7 @@ class Interval:
         return int((self.start + self.end) / 2)
 
     def __str__(self):
-        return self.chrom + "\t" + str(self.start) + "\t" + str(self.end)
+        return "Interval(" + self.chrom + ":" + str(self.start) + "-" + str(self.end) + ")"
 
     def __hash__(self):
         return (((hash(self.chrom) * 31) + hash(self.start)) * 31) + hash(self.end)

@@ -31,6 +31,7 @@ workflow EvaluateGermlineCNVCalls {
 
     output {
         File confusion_values = EvaluateCalls.confusion_values
+        File area_under_roc = EvaluateCalls.area_under_roc
         Array[File] metrics_plots = EvaluateCalls.metrics_plots
     }
 }
@@ -68,6 +69,7 @@ task EvaluateCalls {
           --padded_intervals ${padded_intervals} \
           --blacklisted_intervals_truth ${blacklisted_intervals_truth} \
           --confusion_matrix_output confusion_values.tsv \
+          --area_under_curve_output area_under_roc.tsv \
           --callset_filter_names ${sep=' ' callset_filter_names} \
           --callset_filter_max_values ${sep=' ' callset_filter_max_values} \
           --callset_filter_num_bins ${sep=' ' callset_filter_num_bins} \
@@ -84,7 +86,7 @@ task EvaluateCalls {
 
     output {
         File confusion_values = "confusion_values.tsv"
+        File area_under_roc = "area_under_roc.tsv"
         Array[File] metrics_plots = glob("plots/*")
-
     }
 }

@@ -1,5 +1,9 @@
 FROM continuumio/miniconda3 
 
+RUN apt-get -y update
+RUN apt-get -y install --reinstall build-essential 
+RUN apt-get install libz-dev
+
 ADD environment.yml .
 RUN conda env create -f environment.yml 
 

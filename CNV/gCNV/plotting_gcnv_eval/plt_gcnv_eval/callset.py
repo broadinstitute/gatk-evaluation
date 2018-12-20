@@ -42,6 +42,9 @@ class Call:
     def __hash__(self) -> int:
         return super().__hash__()
 
+    def __str__(self) -> str:
+        return "Call(" + str(self.interval) + ", call_type: " + str(self.event_type) + ")"
+
 
 class Callset(ABC):
 
@@ -82,18 +85,27 @@ class Callset(ABC):
     def find_intersection_with_interval(self, interval: Interval, sample: str):
         """
         Given an interval find all overlapping calls in the callset and truncate them appropriately. In addition,
-        fill in all missing gaps in callset with NO_CALL event types
+        fill in all missing gaps in callset with NO_CALL event types.
+        Note: we assume that the calls in the callset do not overlap for a single sample.
 
         Args:
             interval: a given interval
             sample: sample from the callset
 
         Returns:
-            A list of sorted, non-overlapping events that completely covers the given interval
+            A list of sorted, non-overlapping events that completely cover a given interval
         """
 
         calls = self.sample_to_calls_map.get(sample)
         intersecting_calls = calls.find_intersection(interval)
+
+        # assert that calls do not overlap
+        for call1 in intersecting_calls:
+            for call2 in intersecting_calls:
+                if call1 is not call2:
+                    assert not call1.interval.intersects_with(call2.interval), \
+                        "Calls %s and %s in the callset intersect for sample %s" % (str(call1), str(call2), sample)
+
         filtered_intersecting_calls = [call for call in intersecting_calls if call
                                        not in self.filtered_calls.get(sample)]
 
@@ -110,7 +122,8 @@ class Callset(ABC):
             result.addi(interval.start, interval.end, EventType.NO_CALL)
             result.split_overlaps()
             for call in filtered_intersecting_calls:
-                result.remove_overlap(call.interval.center())
+                result.remove_overlap(call.interval.start, call.interval.end)
+            for call in filtered_intersecting_calls:
                 result.addi(call.interval.start, call.interval.end, call.event_type)
 
             result.chop(interval.end, max(interval.end, max_val))
@@ -168,7 +181,7 @@ class TruthCallset(Callset):
                     if sample_to_calls_map[sample_name][0][-1].intersects_with(interval):
                         last_interval = sample_to_calls_map[sample_name][0][-1]
                         last_call = sample_to_calls_map[sample_name][1][-1]
-                        if last_interval.end < interval.end and last_call.event_type == call.event_type:
+                        if last_interval.end <= interval.end and last_call.event_type == call.event_type:
                             # Merge overlapping events with the same call
                             sample_to_calls_map[sample_name][0][-1] = Interval(interval.chrom,
                                                                                last_interval.start,

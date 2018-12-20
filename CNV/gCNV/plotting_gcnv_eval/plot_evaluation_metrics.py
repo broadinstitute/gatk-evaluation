@@ -17,11 +17,11 @@ def plot_gcnv_metrics(output_dir: str, gcnv_segment_vcfs: list):
     plot_number_of_events_distribution(output_dir + "event_number_distribution.png", gcnv_segment_vcfs)
 
 
-def plot_performance_metrics_and_write_results(truth_calls: str, gcnv_segment_vcfs: list,
-                                               padded_interval_file: str, blacklisted_intervals_truth: str,
-                                               confusion_matrix_output_file: str, area_under_curve_output: str,
-                                               callset_filter_names: list, callset_filter_max_values: list,
-                                               callset_filter_num_bins: list, attribute_for_roc_creation: str):
+def evaluate_performance_metrics_and_write_results(truth_calls: str, gcnv_segment_vcfs: list,
+                                                   padded_interval_file: str, blacklisted_intervals_truth: str,
+                                                   confusion_matrix_output_file: str, area_under_curve_output: str,
+                                                   callset_filter_names: list, callset_filter_max_values: list,
+                                                   callset_filter_num_bins: list, attribute_for_roc_creation: str):
     io_plt.log("Reading in callsets.")
     truth_callset = TruthCallset.read_in_callset(truth_file=truth_calls, interval_file=padded_interval_file)
     gcnv_callset = GCNVCallset.read_in_callset(gcnv_segment_vcfs=gcnv_segment_vcfs)
@@ -115,11 +115,11 @@ def main():
 
     # Evaluate performance and produce metrics plots
     plot_gcnv_metrics(output_dir, gcnv_segment_vcfs)
-    plot_performance_metrics_and_write_results(truth_calls, gcnv_segment_vcfs, padded_intervals,
-                                               blacklisted_intervals_truth, confusion_matrix_output_file,
-                                               area_under_curve_output, callset_filter_names,
-                                               callset_filter_max_values, callset_filter_num_bins,
-                                               attribute_for_roc_creation)
+    evaluate_performance_metrics_and_write_results(truth_calls, gcnv_segment_vcfs, padded_intervals,
+                                                   blacklisted_intervals_truth, confusion_matrix_output_file,
+                                                   area_under_curve_output, callset_filter_names,
+                                                   callset_filter_max_values, callset_filter_num_bins,
+                                                   attribute_for_roc_creation)
     io_plt.log("SUCCESS")
 
 
