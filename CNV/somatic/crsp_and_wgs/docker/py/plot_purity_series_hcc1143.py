@@ -174,6 +174,7 @@ def run_purity_plotting(input_tsvs, output_dir):
         sample = find_sample_from_filename(input_tsv)
 
         segs_df_tmp = pandas.read_csv(input_tsv, sep="\t", comment="@")
+        # CallModeledSegments's output's column header should contain LOG2_COPY_RATIO_POSTERIOR_50. CallCopyRatioSegments' should contain MEAN_LOG2_COPY_RATIO
         INPUT_GUESS_CR_COLUMN_NAME = "LOG2_COPY_RATIO_POSTERIOR_50" if ("LOG2_COPY_RATIO_POSTERIOR_50" in segs_df_tmp.columns) else "MEAN_LOG2_COPY_RATIO"
         
 
