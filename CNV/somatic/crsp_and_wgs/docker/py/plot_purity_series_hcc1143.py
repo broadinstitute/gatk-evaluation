@@ -146,6 +146,10 @@ def is_passing(hi_sens, hi_prec, purity, min_sensitivity, min_precision, min_sup
     return True
 
 
+def total_length_in_bp(segments_pandas_df):
+    return len(segments_pandas_df)
+
+
 def run_purity_plotting(input_tsvs, output_dir):
     # type: (list[str], str) -> None
     """
@@ -200,15 +204,19 @@ def run_purity_plotting(input_tsvs, output_dir):
 
         ## Amps
         tp = segs_gt_to_consider[(segs_gt_to_consider["CALL"] == "+") & (segs_gt_to_consider[GT_CN_COLUMN_NAME] >= MIN_COPY_NUMBER_FOR_AMPLIFICATION)]
+        tp_bps = total_length_in_bp(tp)
         all_gt_amp = segs_gt_to_consider[segs_gt_to_consider[GT_CN_COLUMN_NAME] >= MIN_COPY_NUMBER_FOR_AMPLIFICATION]
-        sens_amps = float(len(tp)) / float(len(all_gt_amp))
-        sens_amps_ci = clopper_pearson(len(tp), len(all_gt_amp))
-        sens_amps_N = len(all_gt_amp)
+        all_gt_amp_bps = total_length_in_bp(all_gt_amp)
+
+        sens_amps = float(tp_bps) / float(all_gt_amp_bps)
+        sens_amps_ci = clopper_pearson(tp_bps, all_gt_amp_bps)
+        sens_amps_N = all_gt_amp_bps
 
         fp = segs_gt_to_consider[(segs_gt_to_consider["CALL"] == "+") & (segs_gt_to_consider[GT_CN_COLUMN_NAME] < MIN_COPY_NUMBER_FOR_AMPLIFICATION)]
-        prec_amps = float(len(tp)) / float(len(tp) + len(fp))
-        prec_amps_ci = clopper_pearson(len(tp), (len(tp) + len(fp)))
-        prec_amps_N = len(tp) + len(fp)
+        fp_bps = total_length_in_bp(fp)
+        prec_amps = float(tp_bps) / float(tp_bps + fp_bps)
+        prec_amps_ci = clopper_pearson(tp_bps, (tp_bps + fp_bps))
+        prec_amps_N = tp_bps + fp_bps
 
         amp_result = Series(name=sample, data={result_cols[0]: sens_amps, result_cols[1]: sens_amps_ci[0],
                                                result_cols[2]: sens_amps_ci[1], result_cols[3]: sens_amps_N,
@@ -227,21 +235,23 @@ def run_purity_plotting(input_tsvs, output_dir):
         ## Dels
         tp_del = segs_gt_to_consider[
             (segs_gt_to_consider["CALL"] == "-") & (segs_gt_to_consider[GT_CN_COLUMN_NAME] <= MAX_COPY_NUMBER_FOR_DELETION)]
+        tp_del_bps = total_length_in_bp(tp_del)
         all_gt_del = segs_gt_to_consider[segs_gt_to_consider[GT_CN_COLUMN_NAME] <= MAX_COPY_NUMBER_FOR_DELETION]
-        sens_dels = float(len(tp_del)) / float(len(all_gt_del))
-        sens_dels_ci = clopper_pearson(len(tp_del), len(all_gt_del))
-        sens_dels_N = len(all_gt_del)
+        all_gt_del_bps = total_length_in_bp(all_gt_del)
+        sens_dels = float(tp_del_bps) / float(all_gt_del_bps)
+        sens_dels_ci = clopper_pearson(tp_del_bps, all_gt_del_bps)
+        sens_dels_N = all_gt_del_bps
 
         fp_del = segs_gt_to_consider[
             (segs_gt_to_consider["CALL"] == "-") & (segs_gt_to_consider[GT_CN_COLUMN_NAME] > MAX_COPY_NUMBER_FOR_DELETION)]
         
-        if (len(tp_del) + len(fp_del)) == 0:
+        if (tp_del_bps + fp_del_bps) == 0:
             prec_dels = 1.0
             prec_dels_ci = (0.0, 1.0)
         else:
-            prec_dels = float(len(tp_del)) / float(len(tp_del) + len(fp_del))
-            prec_dels_ci = clopper_pearson(len(tp_del), (len(tp_del) + len(fp_del)))
-        prec_dels_N = len(tp_del) + len(fp_del)
+            prec_dels = float(tp_del_bps) / float(tp_del_bps + fp_del_bps)
+            prec_dels_ci = clopper_pearson(tp_del_bps, (tp_del_bps + fp_del_bps))
+        prec_dels_N = tp_del_bps + fp_del_bps
 
         del_result = Series(name=sample, data={result_cols[0]: sens_dels, result_cols[1]: sens_dels_ci[0],
                                                result_cols[2]: sens_dels_ci[1], result_cols[3]: sens_dels_N,
