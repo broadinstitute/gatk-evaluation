@@ -147,7 +147,7 @@ def is_passing(hi_sens, hi_prec, purity, min_sensitivity, min_precision, min_sup
 
 
 def total_length_in_bp(segments_pandas_df):
-    return len(segments_pandas_df)
+    return np.sum(list(segments_pandas_df["END"] - segments_pandas_df["START"] + 1))
 
 
 def run_purity_plotting(input_tsvs, output_dir):
