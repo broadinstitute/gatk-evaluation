@@ -11,12 +11,13 @@ import pandas
 from pandas import DataFrame
 from pandas import Series
 
+USE_OLD_CALLER = False
+
 ploidy = 3.7
 
 GT_CN_COLUMN_NAME = "cn"
 GT_CR_COLUMN_NAME = "gt_cr"
 GUESS_CR_COLUMN_NAME = "guess_cr"
-INPUT_GUESS_CR_COLUMN_NAME = "LOG2_COPY_RATIO_POSTERIOR_50"
 IS_LOG2_GUESS_CR = True
 MULTI_VALUE_SEPARATOR = "__"
 MAX_COPY_NUMBER_FOR_DELETION = 1
@@ -173,6 +174,8 @@ def run_purity_plotting(input_tsvs, output_dir):
         sample = find_sample_from_filename(input_tsv)
 
         segs_df_tmp = pandas.read_csv(input_tsv, sep="\t", comment="@")
+        INPUT_GUESS_CR_COLUMN_NAME = "LOG2_COPY_RATIO_POSTERIOR_50" if ("LOG2_COPY_RATIO_POSTERIOR_50" in segs_df_tmp.columns) else "MEAN_LOG2_COPY_RATIO"
+        
 
         # Clean up by removing all locations where there was more than one ground truth value for copy number/ratio
         segs_df = segs_df_tmp[segs_df_tmp[GT_CN_COLUMN_NAME].apply(more_than_one_value)]

@@ -12,6 +12,8 @@ import matplotlib.pyplot as plt
 import numpy
 import pandas
 
+# When the parameter below is True, the validation assumes the output of CallModeledSegments. If it is False, then it assumes the output of CallCopyRatioSegments.
+ASSUME_CALL_MODELED_SEGMENTS_OUTPUT = True
 
 # shard 5 and shard 10
 def plot_reproducibility(dfj, output_dir, sample1, sample2, threePThresh, title, step_in_plot, hi_lim=40.0,
@@ -101,8 +103,12 @@ def main():
     sample_df = pandas.read_csv(input_file, sep="\t", comment="@")
 
     # Back out a copy ratio (not log'd) from the output of the CNV tool.
-    sample_df["guess_cr_1"] = 2 ** sample_df["LOG2_COPY_RATIO_POSTERIOR_50_1"]
-    sample_df["guess_cr_2"] = 2 ** sample_df["LOG2_COPY_RATIO_POSTERIOR_50_2"]
+    if "LOG2_COPY_RATIO_POSTERIOR_50_1" in sample_df.columns:
+        sample_df["guess_cr_1"] = 2 ** sample_df["LOG2_COPY_RATIO_POSTERIOR_50_1"]
+        sample_df["guess_cr_2"] = 2 ** sample_df["LOG2_COPY_RATIO_POSTERIOR_50_2"]
+    else:
+        sample_df["guess_cr_1"] = 2 ** sample_df["MEAN_LOG2_COPY_RATIO_1"]
+        sample_df["guess_cr_2"] = 2 ** sample_df["MEAN_LOG2_COPY_RATIO_2"]
 
     # Back out a copy number.
     #  Important note:  This assumes a purity of 100%
