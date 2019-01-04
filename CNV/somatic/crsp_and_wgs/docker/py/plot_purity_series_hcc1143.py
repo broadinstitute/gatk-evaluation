@@ -257,6 +257,7 @@ def run_purity_plotting(input_tsvs, output_dir):
 
         fp_del = segs_gt_to_consider[
             (segs_gt_to_consider["CALL"] == "-") & (segs_gt_to_consider[GT_CN_COLUMN_NAME] > MAX_COPY_NUMBER_FOR_DELETION)]
+        fp_del_bps = total_length_in_bp(fp_del)
         
         if (tp_del_bps + fp_del_bps) == 0:
             prec_dels = 1.0
