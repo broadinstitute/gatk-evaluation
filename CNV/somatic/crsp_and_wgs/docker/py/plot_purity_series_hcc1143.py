@@ -6,6 +6,7 @@ import os
 from argparse import RawDescriptionHelpFormatter, ArgumentParser
 from clopper_pearson import clopper_pearson
 import matplotlib.pyplot as plt
+import numpy as np
 
 import pandas
 from pandas import DataFrame
