@@ -208,15 +208,23 @@ def run_purity_plotting(input_tsvs, output_dir):
         tp_bps = total_length_in_bp(tp)
         all_gt_amp = segs_gt_to_consider[segs_gt_to_consider[GT_CN_COLUMN_NAME] >= MIN_COPY_NUMBER_FOR_AMPLIFICATION]
         all_gt_amp_bps = total_length_in_bp(all_gt_amp)
-
-        sens_amps = float(tp_bps) / float(all_gt_amp_bps)
-        sens_amps_ci = clopper_pearson(tp_bps, all_gt_amp_bps)
+        
+        if all_gt_amp_bps == 0:
+            sens_amps = 1.0
+            sens_amps_ci = (0.0, 1.0)
+        else:
+            sens_amps = float(tp_bps) / float(all_gt_amp_bps)
+            sens_amps_ci = clopper_pearson(tp_bps, all_gt_amp_bps)
         sens_amps_N = all_gt_amp_bps
 
         fp = segs_gt_to_consider[(segs_gt_to_consider["CALL"] == "+") & (segs_gt_to_consider[GT_CN_COLUMN_NAME] < MIN_COPY_NUMBER_FOR_AMPLIFICATION)]
         fp_bps = total_length_in_bp(fp)
-        prec_amps = float(tp_bps) / float(tp_bps + fp_bps)
-        prec_amps_ci = clopper_pearson(tp_bps, (tp_bps + fp_bps))
+        if tp_bps + fp_bps == 0:
+            prec_amps = 1.0
+            prec_amps_ci = (0.0, 1.0)
+        else:
+            prec_amps = float(tp_bps) / float(tp_bps + fp_bps)
+            prec_amps_ci = clopper_pearson(tp_bps, (tp_bps + fp_bps))
         prec_amps_N = tp_bps + fp_bps
 
         amp_result = Series(name=sample, data={result_cols[0]: sens_amps, result_cols[1]: sens_amps_ci[0],
@@ -239,8 +247,12 @@ def run_purity_plotting(input_tsvs, output_dir):
         tp_del_bps = total_length_in_bp(tp_del)
         all_gt_del = segs_gt_to_consider[segs_gt_to_consider[GT_CN_COLUMN_NAME] <= MAX_COPY_NUMBER_FOR_DELETION]
         all_gt_del_bps = total_length_in_bp(all_gt_del)
-        sens_dels = float(tp_del_bps) / float(all_gt_del_bps)
-        sens_dels_ci = clopper_pearson(tp_del_bps, all_gt_del_bps)
+        if all_gt_del_bps == 0:
+            sens_dels = 1.0
+            sens_dels_ci = (0.0, 1.0)
+        else:
+            sens_dels = float(tp_del_bps) / float(all_gt_del_bps)
+            sens_dels_ci = clopper_pearson(tp_del_bps, all_gt_del_bps)
         sens_dels_N = all_gt_del_bps
 
         fp_del = segs_gt_to_consider[
