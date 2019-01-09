@@ -117,6 +117,8 @@ workflow MultiCNVValidation {
     
     File centromere_track
 
+    File centromere_track
+
     # SM-74P4M and SM-74NF5
     Array[Int] reproducibility_indexes = [5, 10]
     Int index1 = reproducibility_indexes[0]
@@ -315,7 +317,6 @@ workflow MultiCNVValidation {
             plot_clinical_sensitivity_py = plot_clinical_sensitivity_py,
             run_html_report_py = run_html_report_py
     }
-    
     call ReproducibilityValidation {
         input:
             called_segs_1 = cnvValidationPurity.combined_seg_cr_calls_file[index1],
@@ -392,7 +393,7 @@ task CombineTracks {
             -O ${output_name}.combined.germline_tagged.seg -R ${ref_fasta}
 
     echo "======= Centromeres "
-    java -jar "/root/gatk.jar" CombineSegmentBreakpoints \
+    java -jar ${default="/root/gatk.jar" gatk4_jar_override} CombineSegmentBreakpoints \
             --segments ${output_name}.combined.germline_tagged.seg --segments ${centromere_track}  \
             --columns-of-interest LOG2_COPY_RATIO_POSTERIOR_10 \
             --columns-of-interest LOG2_COPY_RATIO_POSTERIOR_50 --columns-of-interest LOG2_COPY_RATIO_POSTERIOR_90 \
@@ -508,13 +509,6 @@ task ReproducibilityValidationPrep {
     File plot_clinical_sensitivity_py
     File run_html_report_py
 
-    # This should be a optional, but cromwell 30 croaks.
-    Float ploidy = 3.7
-
-    String base_targets_file = basename(targets_file)
-    String sample1_name = basename(called_segs_1)
-    String sample2_name = basename(called_segs_2)
-    Boolean is_cr = false
     command <<<
         set -e
         # TODO: We need runtime parameters
