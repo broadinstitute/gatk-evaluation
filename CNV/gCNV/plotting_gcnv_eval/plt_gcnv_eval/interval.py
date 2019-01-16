@@ -7,18 +7,24 @@ class Interval:
                                % (start, end, chrom)
         self.start = start
         self.end = end
-    
+
+    def length(self):
+        return self.start - self.end + 1
+
     def intersects_with(self, interval):
+        """
+        Check whether two intervals overlap by at least one base
+
+        Args:
+            interval: interval to check for intersection with
+
+        Returns: boolean
+
+        """
         if self.chrom != interval.chrom:
             return False
-        return ((self.start >= interval.start) and (self.start <= interval.end)) or \
-               ((interval.start >= self.start) and (interval.start <= self.end))
-
-    def to_interval_file_string(self):
-        return self.__str__() + "\t+\t."
-
-    def center(self) -> int:
-        return int((self.start + self.end) / 2)
+        return ((self.start > interval.start) and (self.start < interval.end)) or \
+               ((interval.start > self.start) and (interval.start < self.end))
 
     def __str__(self):
         return "Interval(" + self.chrom + ":" + str(self.start) + "-" + str(self.end) + ")"
@@ -34,7 +40,6 @@ class Interval:
     def __ne__(self, other):
         return not self.__eq__(other)
 
-    # used by bisect python method
     def __lt__(self, other):
         if self.chrom == other.chrom:
             return self.end <= other.start

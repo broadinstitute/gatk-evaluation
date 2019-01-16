@@ -1,15 +1,16 @@
 from enum import Enum
 import pandas as pd
+import copy
 from abc import ABC, abstractmethod
 from collections import OrderedDict
 import vcf
-from interval import Interval
 from intervaltree import IntervalTree
 from intervaltree import Interval as TreeInterval
-import pybedtools
 
+from interval import Interval
 from interval_collection import IntervalCollection, FeatureCollection
 from filtering import CallsetFilter
+from reference_dictionary import ReferenceDictionary
 import io_plt
 
 
@@ -35,6 +36,12 @@ class Call:
         self.event_type = event_type
         self.call_attributes = call_attributes
 
+    @classmethod
+    def deep_copy(cls, call):
+        interval = Interval(call.interval.chrom, call.interval.start, call.interval.end)
+        return cls(interval=interval, sample=call.sample,
+                   event_type=call.event_type, call_attributes=copy.deepcopy(call.call_attributes))
+
     def __eq__(self, other):
         return self.interval == other.interval and self.sample == other.sample \
                and self.event_type == other.event_type and self.call_attributes == other.call_attributes
@@ -49,19 +56,30 @@ class Call:
 class Callset(ABC):
 
     @abstractmethod
-    def __init__(self, sample_to_calls_map: map):
+    def __init__(self, sample_to_calls_map: dict, ref_dict: ReferenceDictionary):
         """Constructor for abstract callset representation
 
         Args:
             sample_to_calls_map: a map from samples to a FeatureCollection
+            ref_dict: reference dictionary
         """
 
         assert len(sample_to_calls_map) > 0
-        self.sample_names = sample_to_calls_map.keys()
+        self.ref_dict = ref_dict
+        self.sample_names = set(sample_to_calls_map.keys())
         self.sample_to_calls_map = sample_to_calls_map
+        self.__preprocess()
         self.filtered_calls = {}
         for sample in self.sample_names:
             self.filtered_calls[sample] = set()
+
+        for sample in self.sample_names:
+            for call in self.get_calls_with_filters_applied(sample):
+                assert call is not None
+
+        # TODO add a check to make sure the callset is no malformed, i.e. the calls don't intersect and
+        # TODO the intervals in the featurecollections equal to the intervals stored in their corresponding calls
+        # TODO Also make sure that code doesn't break if one of the contigs is not in the callset
         super().__init__()
 
     @classmethod
@@ -69,9 +87,48 @@ class Callset(ABC):
     def read_in_callset(cls, **kwargs):
         pass
 
+    def __preprocess(self):
+        """
+        Preprocess the callset by filling the regions with no calls with EventType.NO_CALL events, thereby assigning
+        an event to every single base.
+
+        """
+
+        for sample in self.sample_names:
+            interval_to_call_map = OrderedDict()
+            for contig in self.ref_dict.contigs:
+                contig_interval = self.ref_dict.get_contig_interval_for_chrom_name(contig)
+                events_on_contig = self.sample_to_calls_map.get(sample).get_interval_tree(contig)
+                if events_on_contig is None:
+                    continue
+
+                result = events_on_contig.copy()
+                # TODO make code aware of 1-based representation
+                # TODO i.e. right now some events overlap by a single base
+                # This hacky code fills potential gaps between calls that lie within interval with NO_CALL events
+                result.addi(contig_interval.start, contig_interval.end, Call(interval=contig_interval,
+                                                                             sample=sample,
+                                                                             event_type=EventType.NO_CALL,
+                                                                             call_attributes=None))
+                result.split_overlaps()
+                for interval in events_on_contig.items():
+                    result.remove_overlap(interval.begin, interval.end)
+                for interval in events_on_contig.items():
+                    result.addi(interval.begin, interval.end, Call.deep_copy(interval.data))
+
+                for t in sorted(result):
+                    if t.end - t.begin == 1 and t.data.event_type == EventType.NO_CALL:
+                        # intervaltree.split_overlaps will create single base regions which we want to discard
+                        continue
+                    call = Call.deep_copy(t.data)
+                    if t.data.event_type == EventType.NO_CALL:
+                        call.interval = Interval(contig, t.begin, t.end)
+                    interval_to_call_map[Interval(contig, t.begin, t.end)] = call
+            self.sample_to_calls_map[sample] = FeatureCollection(interval_to_call_map)
+
     def filter_callset(self, call_filter: CallsetFilter):
         """
-        Filter callset given a binary lambda function that accepts call attributes map as argument
+        Filter callset given a binary lambda function that accepts call attributes map as an argument
 
         Args:
             call_filter: filter to be applied to each of the calls
@@ -84,8 +141,7 @@ class Callset(ABC):
 
     def find_intersection_with_interval(self, interval: Interval, sample: str):
         """
-        Given an interval find all overlapping calls in the callset and truncate them appropriately. In addition,
-        fill in all missing gaps in callset with NO_CALL event types.
+        Given an interval find all overlapping calls in the callset and truncate them appropriately.
         Note: we assume that the calls in the callset do not overlap for a single sample.
 
         Args:
@@ -96,20 +152,14 @@ class Callset(ABC):
             A list of sorted, non-overlapping events that completely cover a given interval
         """
 
+        assert sample in self.sample_names, "Sample %s is not in the callset" % sample
+
         calls = self.sample_to_calls_map.get(sample)
         intersecting_calls = calls.find_intersection(interval)
-
-        # assert that calls do not overlap
-        for call1 in intersecting_calls:
-            for call2 in intersecting_calls:
-                if call1 is not call2:
-                    assert not call1.interval.intersects_with(call2.interval), \
-                        "Calls %s and %s in the callset intersect for sample %s" % (str(call1), str(call2), sample)
 
         filtered_intersecting_calls = [call for call in intersecting_calls if call
                                        not in self.filtered_calls.get(sample)]
 
-        # check if there are any intersecting intervals
         if not filtered_intersecting_calls:
             return [(interval, EventType.NO_CALL)]
         else:
@@ -117,30 +167,46 @@ class Callset(ABC):
                                    for call in filtered_intersecting_calls])
             max_val = sorted(result)[-1].end
             min_val = sorted(result)[0].begin
-
-            # fill potential gaps between calls that lie within interval with NO_CALL events
-            result.addi(interval.start, interval.end, EventType.NO_CALL)
-            result.split_overlaps()
-            for call in filtered_intersecting_calls:
-                result.remove_overlap(call.interval.start, call.interval.end)
-            for call in filtered_intersecting_calls:
-                result.addi(call.interval.start, call.interval.end, call.event_type)
-
             result.chop(interval.end, max(interval.end, max_val))
             result.chop(min(interval.start, min_val), interval.start)
             return [(Interval(interval.chrom, t.begin, t.end), t.data) for t in sorted(result)]
 
+    def get_calls_with_filters_applied(self, sample)->list:
+        """
+
+        Args:
+            sample:
+
+        Returns:
+
+        """
+        assert sample in self.sample_names, "Sample %s is not in the callset" % sample
+
+        callset_feature_collection = self.sample_to_calls_map.get(sample)
+        unfiltered_calls = callset_feature_collection.get_feature_list()
+        filtered_calls = [call for call in unfiltered_calls if call not in self.filtered_calls.get(sample)]
+        return filtered_calls
+
+    def to_string_sample(self, sample):
+        print("#sample=%s" % sample)
+        callset_feature_collection = self.sample_to_calls_map.get(sample)
+        for contig in callset_feature_collection.ordered_contigs:
+            for tree_interval in sorted(callset_feature_collection.get_interval_tree(contig)):
+                print(str(Interval(contig, tree_interval.begin, tree_interval.end)) + '\t' + str(tree_interval.data))
+                print(str(Interval(contig, tree_interval.begin, tree_interval.end)) + '\t' + str(tree_interval.data))
+
 
 class TruthCallset(Callset):
 
-    def __init__(self, sample_to_calls_map: map):
-        super().__init__(sample_to_calls_map)
+    def __init__(self, sample_to_calls_map: map, ref_dict: ReferenceDictionary):
+        super().__init__(sample_to_calls_map, ref_dict)
 
     @classmethod
     def read_in_callset(cls, **kwargs):
         assert "truth_file" in kwargs
         truth_file = kwargs["truth_file"]
         interval_file = kwargs["interval_file"]
+        ref_dict = kwargs["reference_dictionary"]
 
         considered_interval_collection = IntervalCollection.read_interval_list(interval_file)
 
@@ -178,36 +244,31 @@ class TruthCallset(Callset):
 
                 if sample_name in sample_to_calls_map:
                     overall_events += 1
-                    if sample_to_calls_map[sample_name][0][-1].intersects_with(interval):
-                        last_interval = sample_to_calls_map[sample_name][0][-1]
-                        last_call = sample_to_calls_map[sample_name][1][-1]
+                    if sample_to_calls_map.get(sample_name)[-1].interval.intersects_with(interval):
+                        last_interval = sample_to_calls_map.get(sample_name)[-1].interval
+                        last_call = sample_to_calls_map.get(sample_name)[-1]
                         if last_interval.end <= interval.end and last_call.event_type == call.event_type:
                             # Merge overlapping events with the same call
-                            sample_to_calls_map[sample_name][0][-1] = Interval(interval.chrom,
-                                                                               last_interval.start,
-                                                                               interval.end)
-                            sample_to_calls_map[sample_name][1][-1].interval = \
-                                sample_to_calls_map[sample_name][0][-1]
+                            new_interval = Interval(interval.chrom, last_interval.start, interval.end)
+                            sample_to_calls_map.get(sample_name)[-1].interval = new_interval
                             number_of_overlapping_events_same_genotype += 1
                         elif interval.end < last_interval.end:
                             # If one call is contained in another only keep the larger call
                             number_of_enveloped_events += 1
-                            continue
                         else:
                             number_of_not_rescued_overlapping_events += 1
-                            continue
-                    sample_to_calls_map[sample_name][0].append(interval)
-                    sample_to_calls_map[sample_name][1].append(call)
+                        continue
+                    sample_to_calls_map.get(sample_name).append(call)
                 else:
-                    sample_to_calls_map[sample_name] = ([interval], [call])
+                    sample_to_calls_map[sample_name] = [call]
 
             previous_interval_truth = interval
 
         for sample_name in samples_set:
             interval_to_call_map = OrderedDict()
-            for index in range(len(sample_to_calls_map[sample_name][0])):
-                interval_to_call_map[sample_to_calls_map[sample_name][0][index]] = \
-                    sample_to_calls_map[sample_name][1][index]
+            for index in range(len(sample_to_calls_map.get(sample_name))):
+                interval_to_call_map[sample_to_calls_map.get(sample_name)[index].interval] = \
+                    sample_to_calls_map.get(sample_name)[index]
             sample_to_calls_map[sample_name] = FeatureCollection(interval_to_call_map)
 
         io_plt.log("There are %d unique samples in truth set" % (len(samples_set)))
@@ -217,7 +278,7 @@ class TruthCallset(Callset):
         io_plt.log("There are %d overlapping events with the same genotype" %
                    number_of_overlapping_events_same_genotype)
         io_plt.log("There are %d enveloped events with different genotypes" % number_of_enveloped_events)
-        return cls(sample_to_calls_map)
+        return cls(sample_to_calls_map, ref_dict)
 
     @staticmethod
     def __get_event_type_from_sv_type(sv_type: str):
@@ -233,13 +294,14 @@ class TruthCallset(Callset):
 
 class GCNVCallset(Callset):
 
-    def __init__(self, sample_to_calls_map: map):
-        super().__init__(sample_to_calls_map)
+    def __init__(self, sample_to_calls_map: map, ref_dict: ReferenceDictionary):
+        super().__init__(sample_to_calls_map, ref_dict)
 
     @classmethod
     def read_in_callset(cls, **kwargs):
         assert "gcnv_segment_vcfs" in kwargs
         gcnv_segment_vcfs = kwargs["gcnv_segment_vcfs"]
+        ref_dict = kwargs["reference_dictionary"]
         sample_to_calls_map = {}
         for vcf_file in gcnv_segment_vcfs:
 
@@ -256,5 +318,6 @@ class GCNVCallset(Callset):
                               'NP': int(record.genotype(sample_name)['NP'])}
                 call = Call(interval=interval, sample=sample_name, event_type=event_type, call_attributes=attributes)
                 interval_to_call_map[interval] = call
+
             sample_to_calls_map[sample_name] = FeatureCollection(interval_to_call_map)
-        return cls(sample_to_calls_map)
+        return cls(sample_to_calls_map, ref_dict)

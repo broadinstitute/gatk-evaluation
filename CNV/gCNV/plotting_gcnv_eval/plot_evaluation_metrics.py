@@ -4,12 +4,14 @@
 import argparse
 import gzip
 import shutil
+import pybedtools
 
 from plot_metrics import plot_number_of_events_distribution
 from callset import TruthCallset, GCNVCallset
 from interval_collection import IntervalCollection
 from evaluator import Evaluator
 from filtering import BinningFilteringStrategy
+from reference_dictionary import ReferenceDictionary
 import io_plt
 
 
@@ -17,14 +19,16 @@ def plot_gcnv_metrics(output_dir: str, gcnv_segment_vcfs: list):
     plot_number_of_events_distribution(output_dir + "event_number_distribution.png", gcnv_segment_vcfs)
 
 
-def evaluate_performance_metrics_and_write_results(truth_calls: str, gcnv_segment_vcfs: list,
+def evaluate_performance_metrics_and_write_results(truth_calls: str, ref_dict_file: str, gcnv_segment_vcfs: list,
                                                    padded_interval_file: str, blacklisted_intervals_truth: str,
                                                    confusion_matrix_output_file: str, area_under_curve_output: str,
                                                    callset_filter_names: list, callset_filter_max_values: list,
                                                    callset_filter_num_bins: list, attribute_for_roc_creation: str):
     io_plt.log("Reading in callsets.")
-    truth_callset = TruthCallset.read_in_callset(truth_file=truth_calls, interval_file=padded_interval_file)
-    gcnv_callset = GCNVCallset.read_in_callset(gcnv_segment_vcfs=gcnv_segment_vcfs)
+    ref_dict = ReferenceDictionary(ref_dict_file)
+    gcnv_callset = GCNVCallset.read_in_callset(gcnv_segment_vcfs=gcnv_segment_vcfs, reference_dictionary=ref_dict)
+    truth_callset = TruthCallset.read_in_callset(truth_file=truth_calls, interval_file=padded_interval_file,
+                                                 reference_dictionary=ref_dict)
     considered_intervals = IntervalCollection.read_interval_list(padded_interval_file)
     blacklisted_intervals_truth = IntervalCollection.read_interval_list(blacklisted_intervals_truth)
     binning_strategy = BinningFilteringStrategy(attributes=callset_filter_names,
@@ -36,7 +40,8 @@ def evaluate_performance_metrics_and_write_results(truth_calls: str, gcnv_segmen
                           blacklisted_intervals_truth=blacklisted_intervals_truth,
                           samples_to_evaluate=gcnv_callset.sample_names,
                           binning_strategy=binning_strategy)
-    result = evaluator.evaluate_callsets(callset_truth=truth_callset, callset_to_evaluate=gcnv_callset)
+    result = evaluator.evaluate_callset(callset_truth=truth_callset, callset_to_evaluate=gcnv_callset)
+
     result.compute_f1_measures()
     result.write_area_under_roc_to_file(area_under_curve_output,
                                         binning_strategy.get_single_attribute_filters(attribute_for_roc_creation))
@@ -48,6 +53,9 @@ def main():
 
     parser.add_argument('--output_dir', metavar='OutputDirectory', type=str,
                         help='output directory')
+
+    parser.add_argument('--ref_dict', metavar='ReferenceDictionary', type=str,
+                        help='Dict reference file')
 
     parser.add_argument('--gcnv_segment_vcfs', metavar='gCNVSegmentVCF', type=str, nargs='+',
                         help='Segment VCFs output by gCNV')
@@ -89,6 +97,7 @@ def main():
     args = parser.parse_args()
 
     output_dir = args.output_dir
+    ref_dict_file = args.ref_dict
     gcnv_segment_vcfs = args.gcnv_segment_vcfs
     truth_calls = args.sorted_truth_calls_bed
     padded_intervals = args.padded_intervals
@@ -115,7 +124,7 @@ def main():
 
     # Evaluate performance and produce metrics plots
     plot_gcnv_metrics(output_dir, gcnv_segment_vcfs)
-    evaluate_performance_metrics_and_write_results(truth_calls, gcnv_segment_vcfs, padded_intervals,
+    evaluate_performance_metrics_and_write_results(truth_calls, ref_dict_file, gcnv_segment_vcfs, padded_intervals,
                                                    blacklisted_intervals_truth, confusion_matrix_output_file,
                                                    area_under_curve_output, callset_filter_names,
                                                    callset_filter_max_values, callset_filter_num_bins,
