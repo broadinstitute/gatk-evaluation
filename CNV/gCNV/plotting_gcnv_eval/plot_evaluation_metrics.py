@@ -10,7 +10,6 @@ from plot_metrics import plot_number_of_events_distribution
 from callset import TruthCallset, GCNVCallset
 from interval_collection import IntervalCollection
 from evaluator import Evaluator
-from filtering import BinningFilteringStrategy
 from reference_dictionary import ReferenceDictionary
 import io_plt
 
@@ -31,20 +30,19 @@ def evaluate_performance_metrics_and_write_results(truth_calls: str, ref_dict_fi
                                                  reference_dictionary=ref_dict)
     considered_intervals = IntervalCollection.read_interval_list(padded_interval_file)
     blacklisted_intervals_truth = IntervalCollection.read_interval_list(blacklisted_intervals_truth)
-    binning_strategy = BinningFilteringStrategy(attributes=callset_filter_names,
-                                                attributes_max_values=callset_filter_max_values,
-                                                attributes_num_bins=callset_filter_num_bins)
     io_plt.log("Evaluating the callset against the truth.")
     evaluator = Evaluator(evaluation_name="test_eval",
                           considered_intervals=considered_intervals,
                           blacklisted_intervals_truth=blacklisted_intervals_truth,
-                          samples_to_evaluate=gcnv_callset.sample_names,
-                          binning_strategy=binning_strategy)
-    result = evaluator.evaluate_callset(callset_truth=truth_callset, callset_to_evaluate=gcnv_callset)
+                          samples_to_evaluate=gcnv_callset.sample_names)
+    result = evaluator.evaluate_callset(callset_truth=truth_callset,
+                                        callset_to_evaluate=gcnv_callset,
+                                        callset_filter_names=callset_filter_names,
+                                        callset_filter_max_values=callset_filter_max_values,
+                                        callset_filter_num_bins=callset_filter_num_bins)
 
     result.compute_f1_measures()
-    result.write_area_under_roc_to_file(area_under_curve_output,
-                                        binning_strategy.get_single_attribute_filters(attribute_for_roc_creation))
+    result.write_area_under_roc_to_file(area_under_curve_output, attribute_for_roc_creation)
     result.write_result(confusion_matrix_output_file)
 
 
@@ -96,14 +94,18 @@ def main():
     ###################
     args = parser.parse_args()
 
-    output_dir = args.output_dir
+    # input arguments
     ref_dict_file = args.ref_dict
     gcnv_segment_vcfs = args.gcnv_segment_vcfs
     truth_calls = args.sorted_truth_calls_bed
     padded_intervals = args.padded_intervals
+    blacklisted_intervals_truth = args.blacklisted_intervals_truth
+
+    # output arguments
+    output_dir = args.output_dir
     confusion_matrix_output_file = args.confusion_matrix_output
     area_under_curve_output = args.area_under_curve_output
-    blacklisted_intervals_truth = args.blacklisted_intervals_truth
+
     # filtering arguments
     # TODO handle NoneType, i.e. if user does not provide these
     callset_filter_names = args.callset_filter_names

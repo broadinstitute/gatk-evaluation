@@ -1,56 +1,16 @@
-from enum import Enum
-import pandas as pd
-import copy
 from abc import ABC, abstractmethod
 from collections import OrderedDict
-import vcf
-from intervaltree import IntervalTree
-from intervaltree import Interval as TreeInterval
 
+import pandas as pd
+import vcf
+from intervaltree import Interval as TreeInterval
+from intervaltree import IntervalTree
+
+import io_plt
+from call import Call, EventType
 from interval import Interval
 from interval_collection import IntervalCollection, FeatureCollection
-from filtering import CallsetFilter
 from reference_dictionary import ReferenceDictionary
-import io_plt
-
-
-class EventType(Enum):
-    """Enumeration of possible alleles"""
-
-    REF = 0
-    DEL = 1
-    DUP = 2
-    NO_CALL = 3
-
-    @classmethod
-    def gcnv_genotype_to_event_type(cls, gcnv_call: int):
-        return cls(gcnv_call)
-
-
-class Call:
-    """Stores an event type and call qualities for a single interval and single sample"""
-
-    def __init__(self, interval: Interval, sample: str, event_type: EventType, call_attributes: map):
-        self.interval = interval
-        self.sample = sample
-        self.event_type = event_type
-        self.call_attributes = call_attributes
-
-    @classmethod
-    def deep_copy(cls, call):
-        interval = Interval(call.interval.chrom, call.interval.start, call.interval.end)
-        return cls(interval=interval, sample=call.sample,
-                   event_type=call.event_type, call_attributes=copy.deepcopy(call.call_attributes))
-
-    def __eq__(self, other):
-        return self.interval == other.interval and self.sample == other.sample \
-               and self.event_type == other.event_type and self.call_attributes == other.call_attributes
-
-    def __hash__(self) -> int:
-        return super().__hash__()
-
-    def __str__(self) -> str:
-        return "Call(" + str(self.interval) + ", call_type: " + str(self.event_type) + ")"
 
 
 class Callset(ABC):
@@ -69,15 +29,8 @@ class Callset(ABC):
         self.sample_names = set(sample_to_calls_map.keys())
         self.sample_to_calls_map = sample_to_calls_map
         self.__preprocess()
-        self.filtered_calls = {}
-        for sample in self.sample_names:
-            self.filtered_calls[sample] = set()
 
-        for sample in self.sample_names:
-            for call in self.get_calls_with_filters_applied(sample):
-                assert call is not None
-
-        # TODO add a check to make sure the callset is no malformed, i.e. the calls don't intersect and
+        # TODO add a check to make sure the callset is not malformed, i.e. the calls don't intersect and
         # TODO the intervals in the featurecollections equal to the intervals stored in their corresponding calls
         # TODO Also make sure that code doesn't break if one of the contigs is not in the callset
         super().__init__()
@@ -109,7 +62,7 @@ class Callset(ABC):
                 result.addi(contig_interval.start, contig_interval.end, Call(interval=contig_interval,
                                                                              sample=sample,
                                                                              event_type=EventType.NO_CALL,
-                                                                             call_attributes=None))
+                                                                             call_attributes={"QS": 0, "QA": 0}))
                 result.split_overlaps()
                 for interval in events_on_contig.items():
                     result.remove_overlap(interval.begin, interval.end)
@@ -125,19 +78,6 @@ class Callset(ABC):
                         call.interval = Interval(contig, t.begin, t.end)
                     interval_to_call_map[Interval(contig, t.begin, t.end)] = call
             self.sample_to_calls_map[sample] = FeatureCollection(interval_to_call_map)
-
-    def filter_callset(self, call_filter: CallsetFilter):
-        """
-        Filter callset given a binary lambda function that accepts call attributes map as an argument
-
-        Args:
-            call_filter: filter to be applied to each of the calls
-        """
-
-        filter_lambda = call_filter.filter_binary_lambda
-        for sample in self.sample_names:
-            self.filtered_calls[sample] = \
-                set(self.sample_to_calls_map.get(sample).get_all_features_matching_criteria(filter_lambda))
 
     def find_intersection_with_interval(self, interval: Interval, sample: str):
         """
@@ -157,35 +97,16 @@ class Callset(ABC):
         calls = self.sample_to_calls_map.get(sample)
         intersecting_calls = calls.find_intersection(interval)
 
-        filtered_intersecting_calls = [call for call in intersecting_calls if call
-                                       not in self.filtered_calls.get(sample)]
-
-        if not filtered_intersecting_calls:
+        if not intersecting_calls:
             return [(interval, EventType.NO_CALL)]
         else:
             result = IntervalTree([TreeInterval(call.interval.start, call.interval.end, call.event_type)
-                                   for call in filtered_intersecting_calls])
+                                   for call in intersecting_calls])
             max_val = sorted(result)[-1].end
             min_val = sorted(result)[0].begin
             result.chop(interval.end, max(interval.end, max_val))
             result.chop(min(interval.start, min_val), interval.start)
             return [(Interval(interval.chrom, t.begin, t.end), t.data) for t in sorted(result)]
-
-    def get_calls_with_filters_applied(self, sample)->list:
-        """
-
-        Args:
-            sample:
-
-        Returns:
-
-        """
-        assert sample in self.sample_names, "Sample %s is not in the callset" % sample
-
-        callset_feature_collection = self.sample_to_calls_map.get(sample)
-        unfiltered_calls = callset_feature_collection.get_feature_list()
-        filtered_calls = [call for call in unfiltered_calls if call not in self.filtered_calls.get(sample)]
-        return filtered_calls
 
     def to_string_sample(self, sample):
         print("#sample=%s" % sample)

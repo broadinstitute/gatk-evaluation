@@ -106,6 +106,7 @@ class FeatureCollection(LocatableCollection):
     """
 
     def __init__(self, interval_to_features_dict: OrderedDict):
+        self.feature_list = list(interval_to_features_dict.values())
         self.interval_list = list(interval_to_features_dict.keys())
         self.ordered_contigs = list(OrderedDict({t.chrom: None for t in self.interval_list}).keys())
         self.contig_to_intervals_map = {contig: IntervalTree() for contig in self.ordered_contigs}
@@ -146,3 +147,14 @@ class FeatureCollection(LocatableCollection):
                 if criteria(tree_interval.data):
                     features_matching_criteria.append(tree_interval.data)
         return features_matching_criteria
+
+    def __iter__(self):
+        self.current_idx = 0
+        return self
+
+    def __next__(self):
+        if self.current_idx >= len(self.feature_list):
+            raise StopIteration
+        else:
+            self.current_idx += 1
+            return self.feature_list[self.current_idx - 1]
