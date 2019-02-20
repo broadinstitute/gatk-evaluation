@@ -11,6 +11,7 @@ workflow EvaluateGermlineCNVCalls {
     File padded_intervals
     String gcnv_evaluation_docker
     File blacklisted_intervals_truth
+    File ref_fasta_dict
 
     ##################################
     #### optional basic arguments ####
@@ -25,12 +26,14 @@ workflow EvaluateGermlineCNVCalls {
             padded_intervals = padded_intervals,
             gcnv_evaluation_docker = gcnv_evaluation_docker,
             blacklisted_intervals_truth = blacklisted_intervals_truth,
+            ref_fasta_dict = ref_fasta_dict,
             gcnv_eval_script = gcnv_eval_script,
             preemptible_attempts = preemptible_attempts
     }
 
     output {
-        File confusion_values = EvaluateCalls.confusion_values
+        File confusion_matrix = EvaluateCalls.confusion_matrix
+        File confusion_matrix_bounded_filters = EvaluateCalls.confusion_matrix_bounded_filters
         File area_under_roc = EvaluateCalls.area_under_roc
         Array[File] metrics_plots = EvaluateCalls.metrics_plots
     }
@@ -42,10 +45,12 @@ task EvaluateCalls {
     File padded_intervals
     String gcnv_eval_script
     File blacklisted_intervals_truth
+    File ref_fasta_dict
+    Array[File]+ gcnv_model_tars
     
-    Array[String] callset_filter_names = ['QS']
-    Array[Float] callset_filter_max_values = [150]
-    Array[Int] callset_filter_num_bins = [10]
+    Array[String] callset_filter_names = ['QS', 'QA']
+    Array[Float] callset_filter_max_values = [3100, 200]
+    Array[Int] callset_filter_num_bins = [1000, 50]
     String attribute_for_roc_creation = 'QS'
 
     #Runtime parameters
@@ -58,22 +63,35 @@ task EvaluateCalls {
 
     Int machine_mem_mb = select_first([mem_gb, 2]) * 1000
 
+    Int num_model_tars = length(gcnv_model_tars)
+
     String dollar = "$" #WDL workaround for using array[@], see https://github.com/broadinstitute/cromwell/issues/1819
     command <<<
-        mkdir plots
+        set -e
+        mkdir -p out/plots
+
+        # untar models to shard-0, shard-1, etc directories 
+        gcnv_model_tar_array=(${sep=" " gcnv_model_tars})
+        for index in ${dollar}{!gcnv_model_tar_array[@]}; do
+            gcnv_model_tar=${dollar}{gcnv_model_tar_array[$index]}
+            mkdir shard-$index
+            tar xzf $gcnv_model_tar -C shard-$index
+        done
+
 
         python ${gcnv_eval_script} \
-          --output_dir plots \
+          --output_dir out \
+          --ref_dict ${ref_fasta_dict} \
           --gcnv_segment_vcfs ${sep=' ' genotyped_segments_vcfs} \
           --sorted_truth_calls_bed ${truth_bed_sample_ids} \
           --padded_intervals ${padded_intervals} \
           --blacklisted_intervals_truth ${blacklisted_intervals_truth} \
-          --confusion_matrix_output confusion_values.tsv \
-          --area_under_curve_output area_under_roc.tsv \
           --callset_filter_names ${sep=' ' callset_filter_names} \
           --callset_filter_max_values ${sep=' ' callset_filter_max_values} \
           --callset_filter_num_bins ${sep=' ' callset_filter_num_bins} \
-          --attribute_for_roc_creation ${attribute_for_roc_creation}
+          --attribute_for_roc_creation ${attribute_for_roc_creation} \
+          --gcnv_models_directory . \
+          --num_model_shards ${num_model_tars}
     >>>
 
     runtime {
@@ -85,8 +103,9 @@ task EvaluateCalls {
     }
 
     output {
-        File confusion_values = "confusion_values.tsv"
-        File area_under_roc = "area_under_roc.tsv"
-        Array[File] metrics_plots = glob("plots/*")
+        File confusion_matrix = "out/confusion_matrix.tsv"
+        File confusion_matrix_bounded_filters = "out/confusion_matrix_bounded_filters.tsv"
+        File area_under_roc = "out/area_under_roc.tsv"
+        Array[File] metrics_plots = glob("out/plots/*")
     }
 }

@@ -1,10 +1,12 @@
+import os
 from typing import List
 import pandas as pd
 from enum import Enum
 import numpy as np
 
 import constants
-from filtering import FilteringBinCollection, LowerBoundedFilterBin
+from filtering import FilteringBinCollection
+import plot_metrics
 
 
 class ConfusionType(Enum):
@@ -37,21 +39,16 @@ class EvaluationResult:
     Class that represents confusion matrix of the evaluation
     """
 
-    def __init__(self, callset_filter_names, callset_filter_max_values, callset_filter_num_bins):
+    def __init__(self, callset_filter_names: List[str], callset_filter_max_values: List[float], callset_filter_num_bins: List[int]):
         self.filter_bin_collection = FilteringBinCollection(attributes=callset_filter_names,
                                                             attributes_max_values=callset_filter_max_values,
                                                             attributes_num_bins=callset_filter_num_bins)
         self.bounded_filters = self.filter_bin_collection.bounded_filter_list
         self.lower_bounded_filters = self.filter_bin_collection.lower_bounded_filter_list
-        # extra column for the f1 score
-        num_cols = len(list(ConfusionType)) + 1
-        num_rows = len(self.bounded_filters)
 
         self.bounded_filter_names = [str(f) for f in self.bounded_filters]
         self.lower_bounded_filter_names = [str(f) for f in self.lower_bounded_filters]
-        self.column_names = ClassificationResult.get_name_header()
         self.f1_score_col = constants.F1_SCORE_COLUMN_NAME
-        self.column_names.append(self.f1_score_col)
 
         self.confusion_matrix_bounded_filters_pd = None
         self.confusion_matrix_lower_bounded_filters_pd = None
@@ -104,14 +101,16 @@ class EvaluationResult:
         Returns:
 
         """
+        column_names = ClassificationResult.get_name_header()
         if self.confusion_matrix_bounded_filters_pd is None:
-            confusion_matrix = np.zeros(shape=(len(self.bounded_filters), len(self.column_names)), dtype=np.int32)
+            confusion_matrix = np.zeros(shape=(len(self.bounded_filters), len(column_names)), dtype=np.int64)
             for idx, bounded_filter in enumerate(self.bounded_filters):
                 confusion_entry_for_filter = self.confusion_matrix_bounded_filters[bounded_filter].get_ndarray()
                 confusion_matrix[idx, :confusion_entry_for_filter.size] = confusion_entry_for_filter
 
-            self.confusion_matrix_bounded_filters_pd = pd.DataFrame(index=self.bounded_filter_names, data=confusion_matrix,
-                                                                    columns=self.column_names)
+            self.confusion_matrix_bounded_filters_pd = pd.DataFrame(index=self.bounded_filter_names,
+                                                                    data=confusion_matrix,
+                                                                    columns=column_names)
             self._compute_lower_bounded_confusion_matrix()
 
     def _compute_lower_bounded_confusion_matrix(self):
@@ -120,16 +119,19 @@ class EvaluationResult:
         Returns:
 
         """
+        column_names = ClassificationResult.get_name_header()
+        column_names.append(constants.F1_SCORE_COLUMN_NAME)
         if self.confusion_matrix_lower_bounded_filters_pd is None:
-            confusion_matrix = np.zeros(shape=(len(self.lower_bounded_filters), len(self.column_names)), dtype=np.int32)
+            confusion_matrix = np.zeros(shape=(len(self.lower_bounded_filters), len(column_names)), dtype=np.int64)
             for idx, lower_bounded_filter in enumerate(self.lower_bounded_filters):
                 confusion_entry_sum = ClassificationResult().get_ndarray()
                 for bounded_filter in self.filter_bin_collection.get_lower_bounded_filter_sum(lower_bounded_filter):
                     confusion_entry_for_filter = self.confusion_matrix_bounded_filters[bounded_filter].get_ndarray()
                     confusion_entry_sum += confusion_entry_for_filter
                 confusion_matrix[idx, :confusion_entry_sum.size] = confusion_entry_sum
-            self.confusion_matrix_lower_bounded_filters_pd = pd.DataFrame(index=self.lower_bounded_filter_names, data=confusion_matrix,
-                                                                          columns=self.column_names)
+            self.confusion_matrix_lower_bounded_filters_pd = pd.DataFrame(index=self.lower_bounded_filter_names,
+                                                                          data=confusion_matrix,
+                                                                          columns=column_names)
 
     def compute_f1_measures(self):
         self._initialize_pandas_dataframes()
@@ -143,7 +145,7 @@ class EvaluationResult:
 
             self.confusion_matrix_lower_bounded_filters_pd.loc[filter_name, self.f1_score_col] = f1_score
 
-    def write_area_under_roc_to_file(self, file: str, attribute_for_filtering: str):
+    def write_area_under_roc_to_file(self, output_dir: str, attribute_for_filtering: str):
         self._initialize_pandas_dataframes()
         assert self.lower_bounded_filters is not None and len(self.lower_bounded_filters) > 0
         filters_list = self.filter_bin_collection.get_single_attribute_lower_bounded_filters(attribute_for_filtering)
@@ -162,8 +164,12 @@ class EvaluationResult:
         print(sensitivity_values)
         print(false_positive_rate_values)
         area_under_roc = np.trapz(y=sensitivity_values, x=false_positive_rate_values)
-        with open(file, 'w') as output_file:
+        with open(os.path.join(output_dir, constants.AREA_UNDER_ROC_FILE_NAME), 'w') as output_file:
             output_file.write(str(area_under_roc))
+        plot_metrics.plot_roc_curve(output_dir, false_positive_rate_values, sensitivity_values)
 
-    def write_result(self, file: str):
-        self.confusion_matrix_bounded_filters_pd.to_csv(path_or_buf=file, index=True, sep='\t')
+    def write_results(self, output_path: str):
+        self.confusion_matrix_bounded_filters_pd.to_csv(
+            path_or_buf=open(os.path.join(output_path, constants.CONFUSION_MATRIX_WITH_BOUNDED_FILTERS), 'w'), index=True, sep='\t')
+        self.confusion_matrix_lower_bounded_filters_pd.to_csv(
+            path_or_buf=open(os.path.join(output_path, constants.CONFUSION_MATRIX_WITH_LOWER_BOUNDED_FILTERS_NAME), 'w'), index=True, sep='\t')

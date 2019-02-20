@@ -10,19 +10,19 @@ def test_interval_class():
     end = 2000
     test_interval = Interval(chrom=chrom, start=start, end=end)
 
-    test_interval_correct_string = "1\t1000\t2000"
+    test_interval_correct_string = "Interval(1:1000-2000)"
 
     assert (test_interval.__str__() == test_interval_correct_string)
 
 
 def test_interval_lt():
-    lesserIntervalChrom = Interval(chrom="1", start=500, end=600)
-    greaterIntervalChrom = Interval(chrom="2", start=1000, end=2000)
-    assert (greaterIntervalChrom > lesserIntervalChrom)
+    lesser_interval_chrom = Interval(chrom="1", start=500, end=600)
+    greater_interval_chrom = Interval(chrom="2", start=1000, end=2000)
+    assert (greater_interval_chrom > lesser_interval_chrom)
 
-    lesserIntervalPos = Interval(chrom="1", start=1000, end=2000)
-    greaterIntervalPos = Interval(chrom="1", start = 3000, end=4000)
-    assert (greaterIntervalPos > lesserIntervalPos)
+    lesser_interval_pos = Interval(chrom="1", start=1000, end=2000)
+    greater_interval_pos = Interval(chrom="1", start = 3000, end=4000)
+    assert (greater_interval_pos > lesser_interval_pos)
 
     overlapping_interval1 = Interval(chrom="1", start=1000, end=2000)
     overlapping_interval2 = Interval(chrom="1", start=1500, end=2500)

@@ -5,6 +5,8 @@ from interval_collection import IntervalCollection
 from evaluation_results import EvaluationResult
 from typing import List
 
+import io_plt
+
 
 class Evaluator:
     """
@@ -12,19 +14,16 @@ class Evaluator:
     """
 
     def __init__(self, evaluation_name: str, considered_intervals: IntervalCollection,
-                 blacklisted_intervals_truth: IntervalCollection, samples_to_evaluate: list):
+                 blacklisted_intervals_truth: IntervalCollection):
         """
 
         Args:
             evaluation_name:
             considered_intervals:
-            blacklisted_intervals_truth:
-            samples_to_evaluate:
+            blacklisted_intervals_truth: intervals to exclude from evaluation
         """
         self.evaluation_name = evaluation_name
-        self.considered_intervals = considered_intervals
-        self.blacklisted_intervals_truth = blacklisted_intervals_truth
-        self.samples = samples_to_evaluate
+        self.considered_intervals = considered_intervals - blacklisted_intervals_truth
 
     def evaluate_callset(self, callset_truth: Callset, callset_to_evaluate: Callset, callset_filter_names: List[str],
                          callset_filter_max_values: List[float], callset_filter_num_bins: List[int]) -> EvaluationResult:
@@ -41,10 +40,12 @@ class Evaluator:
         Returns:
             Evaluation result object that contains confusion matrices for various filtering criteria
         """
+        samples_to_evaluate = list(callset_truth.sample_names.intersection(callset_to_evaluate.sample_names))
+        io_plt.log("Found %d out of %d provided samples in the truth file" % (len(samples_to_evaluate), len(callset_to_evaluate.sample_names)))
 
         evaluation_result = EvaluationResult(callset_filter_names, callset_filter_max_values, callset_filter_num_bins)
 
-        for sample in self.samples:
+        for sample in samples_to_evaluate:
             for call_to_evaluate in callset_to_evaluate.sample_to_calls_map[sample]:
                 for truth_interval, truth_call_event_type in callset_truth.find_intersection_with_interval(
                         call_to_evaluate.interval, sample):
@@ -62,6 +63,7 @@ class Evaluator:
                                                      eval_call: EventType,
                                                      call_attributes: dict, evaluation_result: EvaluationResult):
         num_bases = interval.end - interval.start
+        assert num_bases > 0
         if eval_call == EventType.NO_CALL:
             if truth_call == EventType.NO_CALL:
                 evaluation_result.increase_no_call_match_bases(num_bases, call_attributes)

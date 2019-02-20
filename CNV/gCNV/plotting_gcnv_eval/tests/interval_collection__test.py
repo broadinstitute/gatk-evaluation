@@ -6,28 +6,40 @@ from interval import Interval
 
 import argparse
 
+
 def test_interval_collection_class(temp_dir: str):
-    test_interval_list = [Interval("1", 1001, 2000), Interval("1", 2001, 3000),
-                          Interval("1", 3001, 4000), Interval("1", 10000, 20000),
-                          Interval("2", 1001, 2000), Interval("2", 2001, 3000)]
+    interval1_1001_2000 = Interval("1", 1001, 2000)
+    interval1_2001_3000 = Interval("1", 2001, 3000)
+    interval1_3001_4000 = Interval("1", 3001, 4000)
+    interval1_10000_20000 = Interval("1", 10000, 20000)
+    interval2_1001_2000 = Interval("2", 1001, 2000)
+    interval2_2001_3000 = Interval("2", 2001, 3000)
+    test_interval_list = [interval1_1001_2000, interval1_2001_3000, interval1_3001_4000, interval1_10000_20000,
+                          interval2_1001_2000, interval2_2001_3000]
     test_interval_collection_header = "@TESTHEADER"
     test_interval_collection = IntervalCollection(
         interval_list=test_interval_list, header=test_interval_collection_header)
-    test_interval_collection.write_interval_list(temp_dir, "test_intervals.tsv")
-    parsed_interval_collection = IntervalCollection.read_interval_list(temp_dir + "test_intervals.tsv")
-    assert parsed_interval_collection == test_interval_collection
 
-    #Test search
-    assert(test_interval_collection.find_intersecting_interval_indices(Interval("1", 500, 1500)) == [0])
+    # Test search method
+    assert test_interval_collection.find_intersection(Interval("1", 500, 1500)) == [interval1_1001_2000]
+    assert test_interval_collection.find_intersection(Interval("1", 2500, 3500)) == [interval1_2001_3000,
+                                                                                     interval1_3001_4000]
+    assert test_interval_collection.find_intersection(Interval("1", 100000, 100100)) == []
 
-    assert(test_interval_collection.find_intersecting_interval_indices(Interval("1", 2500, 3500)) == [1, 2])
+    # Test find_intersection_with_interval_and_truncate
+    assert test_interval_collection.find_intersection_with_interval_and_truncate(Interval("1", 2500, 3500)) == [
+        Interval("1", 2500, 3000), Interval("1", 3001, 3500)]
+    # Test subtraction operator
+    interval_collection_to_subtract = IntervalCollection([Interval("1", 1001, 2000), Interval("1", 2500, 2501), Interval("3", 100, 200)])
+    assert test_interval_collection - interval_collection_to_subtract == IntervalCollection(
+        interval_list=[interval1_3001_4000, interval1_10000_20000, interval2_1001_2000, interval2_2001_3000],
+        header=test_interval_collection_header)
 
-    assert(test_interval_collection.find_intersecting_interval_indices(Interval("1", 100000, 100100)) == [])
-    
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('temp_dir', metavar='TemporaryDirectory', type=str,
-                    help='temporary directory for tests')
+                        help='temporary directory for tests')
     args = parser.parse_args()
     temp_dir = args.temp_dir
     test_interval_collection_class(temp_dir)

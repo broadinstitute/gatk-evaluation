@@ -6,7 +6,7 @@ import gzip
 import shutil
 import pybedtools
 
-from plot_metrics import plot_number_of_events_distribution
+import plot_metrics
 from callset import TruthCallset, GCNVCallset
 from interval_collection import IntervalCollection
 from evaluator import Evaluator
@@ -14,15 +14,18 @@ from reference_dictionary import ReferenceDictionary
 import io_plt
 
 
-def plot_gcnv_metrics(output_dir: str, gcnv_segment_vcfs: list):
-    plot_number_of_events_distribution(output_dir + "event_number_distribution.png", gcnv_segment_vcfs)
+def plot_gcnv_metrics(output_dir: str, gcnv_segment_vcfs: list, gcnv_model_dir: str, num_model_shards: int):
+    plot_metrics.plot_number_of_events_distribution(output_dir, gcnv_segment_vcfs)
+    plot_metrics.plot_quality_metric_distribution(output_dir, gcnv_segment_vcfs)
+    plot_metrics.plot_event_size_distribution(output_dir, gcnv_segment_vcfs)
+    plot_metrics.plot_ard_components(output_dir, gcnv_model_dir, num_model_shards)
 
 
 def evaluate_performance_metrics_and_write_results(truth_calls: str, ref_dict_file: str, gcnv_segment_vcfs: list,
                                                    padded_interval_file: str, blacklisted_intervals_truth: str,
-                                                   confusion_matrix_output_file: str, area_under_curve_output: str,
                                                    callset_filter_names: list, callset_filter_max_values: list,
-                                                   callset_filter_num_bins: list, attribute_for_roc_creation: str):
+                                                   callset_filter_num_bins: list, attribute_for_roc_creation: str,
+                                                   output_dir: str):
     io_plt.log("Reading in callsets.")
     ref_dict = ReferenceDictionary(ref_dict_file)
     gcnv_callset = GCNVCallset.read_in_callset(gcnv_segment_vcfs=gcnv_segment_vcfs, reference_dictionary=ref_dict)
@@ -33,8 +36,7 @@ def evaluate_performance_metrics_and_write_results(truth_calls: str, ref_dict_fi
     io_plt.log("Evaluating the callset against the truth.")
     evaluator = Evaluator(evaluation_name="test_eval",
                           considered_intervals=considered_intervals,
-                          blacklisted_intervals_truth=blacklisted_intervals_truth,
-                          samples_to_evaluate=gcnv_callset.sample_names)
+                          blacklisted_intervals_truth=blacklisted_intervals_truth)
     result = evaluator.evaluate_callset(callset_truth=truth_callset,
                                         callset_to_evaluate=gcnv_callset,
                                         callset_filter_names=callset_filter_names,
@@ -42,8 +44,8 @@ def evaluate_performance_metrics_and_write_results(truth_calls: str, ref_dict_fi
                                         callset_filter_num_bins=callset_filter_num_bins)
 
     result.compute_f1_measures()
-    result.write_area_under_roc_to_file(area_under_curve_output, attribute_for_roc_creation)
-    result.write_result(confusion_matrix_output_file)
+    result.write_area_under_roc_to_file(output_dir, attribute_for_roc_creation)
+    result.write_results(output_dir)
 
 
 def main():
@@ -64,13 +66,6 @@ def main():
     parser.add_argument('--padded_intervals', metavar='PaddedIntervalsFile', type=str,
                         help='Not filtered, padded interval file')
 
-    parser.add_argument('--confusion_matrix_output', metavar='ConfusionMatrixOutput', type=str,
-                        help='A file to write the resulting confusion matrix')
-
-    parser.add_argument('--area_under_curve_output', metavar='AUCOutput', type=str,
-                        help='A file to write the area under ROC curve;'
-                             ' first filter in list will be used to create ROC')
-
     parser.add_argument('--blacklisted_intervals_truth', metavar='BlacklistTruth', type=str,
                         help='Blacklisted regions that were used to create truth callset')
 
@@ -86,8 +81,12 @@ def main():
     parser.add_argument('--attribute_for_roc_creation', metavar="AttributeROC", type=str,
                         help='Which genotype attribute for filtering to create ROC.')
 
-    # parser.add_argument('--gcnv_model_shards', metavar='gCNVModelShards', type=str, nargs='+',
-    #                 help='Model shard directories')
+    parser.add_argument('--gcnv_models_directory', metavar='gCNVModelDirectory', type=str,
+                        help='Directory with subdirectories containing model shard results, where each '
+                             'shard subdirectory is is named \shard-X where X is the index of the shard ')
+
+    parser.add_argument('--num_model_shards', metavar='NumberOfModelShards', type=int,
+                        help='Number of model shards')
 
     ###################
     # Parse arguments #
@@ -103,8 +102,6 @@ def main():
 
     # output arguments
     output_dir = args.output_dir
-    confusion_matrix_output_file = args.confusion_matrix_output
-    area_under_curve_output = args.area_under_curve_output
 
     # filtering arguments
     # TODO handle NoneType, i.e. if user does not provide these
@@ -112,6 +109,10 @@ def main():
     callset_filter_max_values = args.callset_filter_max_values
     callset_filter_num_bins = args.callset_filter_num_bins
     attribute_for_roc_creation = args.attribute_for_roc_creation
+
+    # arguments for model plots
+    gcnv_model_dir = args.gcnv_models_directory
+    num_model_shards = args.num_model_shards
 
     # Handle gzip-ed VCF gcnv files
     new_gcnv_vcfs_list = []
@@ -125,12 +126,11 @@ def main():
     gcnv_segment_vcfs = new_gcnv_vcfs_list
 
     # Evaluate performance and produce metrics plots
-    plot_gcnv_metrics(output_dir, gcnv_segment_vcfs)
+    plot_gcnv_metrics(output_dir, gcnv_segment_vcfs, gcnv_model_dir, num_model_shards)
     evaluate_performance_metrics_and_write_results(truth_calls, ref_dict_file, gcnv_segment_vcfs, padded_intervals,
-                                                   blacklisted_intervals_truth, confusion_matrix_output_file,
-                                                   area_under_curve_output, callset_filter_names,
+                                                   blacklisted_intervals_truth, callset_filter_names,
                                                    callset_filter_max_values, callset_filter_num_bins,
-                                                   attribute_for_roc_creation)
+                                                   attribute_for_roc_creation, output_dir)
     io_plt.log("SUCCESS")
 
 

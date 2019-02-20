@@ -51,8 +51,8 @@ class Callset(ABC):
             interval_to_call_map = OrderedDict()
             for contig in self.ref_dict.contigs:
                 contig_interval = self.ref_dict.get_contig_interval_for_chrom_name(contig)
-                events_on_contig = self.sample_to_calls_map.get(sample).get_interval_tree(contig)
-                if events_on_contig is None:
+                events_on_contig = self.sample_to_calls_map.get(sample)._get_interval_tree(contig)
+                if not events_on_contig:
                     continue
 
                 result = events_on_contig.copy()

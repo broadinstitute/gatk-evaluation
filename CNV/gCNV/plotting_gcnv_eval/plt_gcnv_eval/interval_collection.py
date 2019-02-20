@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 import pandas as pd
 from collections import OrderedDict
 from intervaltree import IntervalTree
+from typing import List
 
 from interval import Interval
 import io_plt
@@ -12,7 +13,7 @@ class LocatableCollection(ABC):
     Abstract class for a collection of genomic intervals and their corresponding data.
     """
 
-    def find_intersection(self, interval: Interval)->list:
+    def find_intersection(self, interval: Interval)->List:
         """
         Find all entries in the collection that overlap with a given interval
 
@@ -53,7 +54,7 @@ class IntervalCollection(LocatableCollection):
     Concrete class for a collection of genomic intervals only
     """
 
-    def __init__(self, interval_list: list, header: str = None):
+    def __init__(self, interval_list: List, header: str = None):
         self.interval_list = interval_list
         self.header = header
         self.ordered_contigs = list(OrderedDict({t.chrom: None for t in self.interval_list}).keys())
@@ -71,7 +72,7 @@ class IntervalCollection(LocatableCollection):
         interval_list = intervals_series.tolist()
         return cls(interval_list=interval_list, header=header)
 
-    def find_intersection_with_interval_and_truncate(self, interval: Interval)->list:
+    def find_intersection_with_interval_and_truncate(self, interval: Interval)->List:
         """
         Args:
             interval: input interval
@@ -98,6 +99,20 @@ class IntervalCollection(LocatableCollection):
     def get_intervals(self):
         return self.interval_list
 
+    def __sub__(self, other):
+        new_interval_list = []
+        for interval in self.interval_list:
+            intersection = other.find_intersection(interval)
+            if len(intersection) == 0:
+                new_interval_list.append(interval)
+
+        return IntervalCollection(new_interval_list, self.header)
+
+    def __eq__(self, other):
+        if type(other) is not IntervalCollection:
+            return False
+        return self.interval_list == other.interval_list
+
 
 class FeatureCollection(LocatableCollection):
     """
@@ -119,34 +134,6 @@ class FeatureCollection(LocatableCollection):
 
     def get_intervals(self):
         return self.interval_list
-
-    def add_feature(self, interval: Interval, data):
-        self.contig_to_intervals_map[interval.chrom][interval.start, interval.end] = data
-
-    def find_feature_for_interval(self, interval: Interval):
-        tree = self.contig_to_intervals_map[interval.chrom]
-        tree_intervals = tree.search(interval.start, interval.end)
-        assert len(tree_intervals) == 1 and tree_intervals[0].begin == interval.start \
-            and tree_intervals[0].end == interval.end, "There should be exactly one entry in the collection"
-
-        return tree_intervals[0].data
-
-    def get_interval_tree(self, contig: str)->IntervalTree:
-        return self.contig_to_intervals_map.get(contig)
-
-    def get_feature_list(self)->list:
-        feature_list = []
-        for contig in self.ordered_contigs:
-            [feature_list.append(feature.data) for feature in sorted(self.contig_to_intervals_map.get(contig))]
-        return feature_list
-
-    def get_all_features_matching_criteria(self, criteria)->list:
-        features_matching_criteria = []
-        for contig in self.ordered_contigs:
-            for tree_interval in self.contig_to_intervals_map.get(contig):
-                if criteria(tree_interval.data):
-                    features_matching_criteria.append(tree_interval.data)
-        return features_matching_criteria
 
     def __iter__(self):
         self.current_idx = 0
