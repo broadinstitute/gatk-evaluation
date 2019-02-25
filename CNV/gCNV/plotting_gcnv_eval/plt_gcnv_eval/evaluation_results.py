@@ -9,29 +9,43 @@ from filtering import FilteringBinCollection
 import plot_metrics
 
 
-class ConfusionType(Enum):
+class ConfusionValueType(Enum):
     TP_BASES = 0
     TN_BASES = 1
     FP_BASES = 2
     FN_BASES = 3
     NO_CALL_MATCH_BASES = 4
 
+    @staticmethod
+    def get_name_header()->list:
+        return [ct.name for ct in list(ConfusionValueType)]
+
 
 class ClassificationResult:
 
     def __init__(self):
+        """
+        This class stores number of true and false positives calls (in bases) made in a specific filter bin
+        """
         self.tp_bases = 0
-        self.tn_bases = 0
         self.fp_bases = 0
-        self.fn_bases = 0
         self.no_call_match_bases = 0
 
-    def get_ndarray(self):
-        return np.array([self.tp_bases, self.tn_bases, self.fp_bases, self.fn_bases, self.no_call_match_bases])
+    def __add__(self, other):
+        assert type(other) == type(self)
+        assert other.tp_bases >= 0 and other.fp_bases >= 0 and other.no_call_match_bases >= 0
 
-    @staticmethod
-    def get_name_header()->list:
-        return [ct.name for ct in list(ConfusionType)]
+        result = ClassificationResult()
+        result.tp_bases = self.tp_bases + other.tp_bases
+        result.fp_bases = self.fp_bases + other.fp_bases
+        result.no_call_match_bases = self.no_call_match_bases + other.no_call_match_bases
+        return result
+
+    def __radd__(self, other):
+        return self.__add__(other)
+
+    def get_ndarray(self):
+        return np.array([self.tp_bases, self.fp_bases, self.no_call_match_bases])
 
 
 class EvaluationResult:
@@ -50,88 +64,34 @@ class EvaluationResult:
         self.lower_bounded_filter_names = [str(f) for f in self.lower_bounded_filters]
         self.f1_score_col = constants.F1_SCORE_COLUMN_NAME
 
-        self.confusion_matrix_bounded_filters_pd = None
-        self.confusion_matrix_lower_bounded_filters_pd = None
+        self.confusion_matrix_bounded_filters_df = None
+        self.confusion_matrix_lower_bounded_filters_df = None
 
         self.confusion_matrix_bounded_filters = {key: ClassificationResult() for key in self.bounded_filters}
 
+        self.overall_number_positive_bases = 0
+        self.overall_number_negative_bases = 0
+
     def increase_tp(self, num_bases: int, attribute_to_value_map: dict):
+        self.overall_number_positive_bases += num_bases
         filter_bin = self.filter_bin_collection.get_filter_bin_by_attribute_values(attribute_to_value_map)
         self.confusion_matrix_bounded_filters[filter_bin].tp_bases += num_bases
 
-    def increase_tn(self, num_bases: int, attribute_to_value_map: dict):
-        filter_bin = self.filter_bin_collection.get_filter_bin_by_attribute_values(attribute_to_value_map)
-        self.confusion_matrix_bounded_filters[filter_bin].tn_bases += num_bases
+    def increase_tn(self, num_bases: int):
+        self.overall_number_negative_bases += num_bases
 
     def increase_fp(self, num_bases: int, attribute_to_value_map: dict):
+        self.overall_number_negative_bases += num_bases
         filter_bin = self.filter_bin_collection.get_filter_bin_by_attribute_values(attribute_to_value_map)
         self.confusion_matrix_bounded_filters[filter_bin].fp_bases += num_bases
 
-    def increase_fn(self, num_bases: int, attribute_to_value_map: dict):
-        filter_bin = self.filter_bin_collection.get_filter_bin_by_attribute_values(attribute_to_value_map)
-        self.confusion_matrix_bounded_filters[filter_bin].fn_bases += num_bases
+    def increase_fn(self, num_bases: int):
+        self.overall_number_positive_bases += num_bases
 
     def increase_no_call_match_bases(self, num_bases: int, attribute_to_value_map: dict):
         filter_bin = self.filter_bin_collection.get_filter_bin_by_attribute_values(attribute_to_value_map)
         assert filter_bin is not None, filter_bin
         self.confusion_matrix_bounded_filters[filter_bin].no_call_match_bases += num_bases
-
-    def _get_recall(self, filter_to_use: str):
-        tp_bases = self.confusion_matrix_lower_bounded_filters_pd.loc[filter_to_use, ConfusionType.TP_BASES.name]
-        fn_bases = self.confusion_matrix_lower_bounded_filters_pd.loc[filter_to_use, ConfusionType.FN_BASES.name]
-        overall = tp_bases + fn_bases
-        return tp_bases / overall if overall else 0.0
-
-    def _get_precision(self, filter_to_use: str):
-        tp_bases = self.confusion_matrix_lower_bounded_filters_pd.loc[filter_to_use, ConfusionType.TP_BASES.name]
-        fp_bases = self.confusion_matrix_lower_bounded_filters_pd.loc[filter_to_use, ConfusionType.FP_BASES.name]
-        overall = tp_bases + fp_bases
-        return tp_bases / overall if overall else 0.0
-
-    def _get_false_positive_rate(self, filter_to_use: str):
-        fp_bases = self.confusion_matrix_lower_bounded_filters_pd.loc[filter_to_use, ConfusionType.FP_BASES.name]
-        tn_bases = self.confusion_matrix_lower_bounded_filters_pd.loc[filter_to_use, ConfusionType.TN_BASES.name] + \
-            self.confusion_matrix_lower_bounded_filters_pd.loc[filter_to_use, ConfusionType.NO_CALL_MATCH_BASES.name]
-        overall = fp_bases + tn_bases
-        return fp_bases / overall if overall else 0.0
-
-    def _initialize_pandas_dataframes(self):
-        """
-
-        Returns:
-
-        """
-        column_names = ClassificationResult.get_name_header()
-        if self.confusion_matrix_bounded_filters_pd is None:
-            confusion_matrix = np.zeros(shape=(len(self.bounded_filters), len(column_names)), dtype=np.int64)
-            for idx, bounded_filter in enumerate(self.bounded_filters):
-                confusion_entry_for_filter = self.confusion_matrix_bounded_filters[bounded_filter].get_ndarray()
-                confusion_matrix[idx, :confusion_entry_for_filter.size] = confusion_entry_for_filter
-
-            self.confusion_matrix_bounded_filters_pd = pd.DataFrame(index=self.bounded_filter_names,
-                                                                    data=confusion_matrix,
-                                                                    columns=column_names)
-            self._compute_lower_bounded_confusion_matrix()
-
-    def _compute_lower_bounded_confusion_matrix(self):
-        """
-
-        Returns:
-
-        """
-        column_names = ClassificationResult.get_name_header()
-        column_names.append(constants.F1_SCORE_COLUMN_NAME)
-        if self.confusion_matrix_lower_bounded_filters_pd is None:
-            confusion_matrix = np.zeros(shape=(len(self.lower_bounded_filters), len(column_names)), dtype=np.int64)
-            for idx, lower_bounded_filter in enumerate(self.lower_bounded_filters):
-                confusion_entry_sum = ClassificationResult().get_ndarray()
-                for bounded_filter in self.filter_bin_collection.get_lower_bounded_filter_sum(lower_bounded_filter):
-                    confusion_entry_for_filter = self.confusion_matrix_bounded_filters[bounded_filter].get_ndarray()
-                    confusion_entry_sum += confusion_entry_for_filter
-                confusion_matrix[idx, :confusion_entry_sum.size] = confusion_entry_sum
-            self.confusion_matrix_lower_bounded_filters_pd = pd.DataFrame(index=self.lower_bounded_filter_names,
-                                                                          data=confusion_matrix,
-                                                                          columns=column_names)
 
     def compute_f1_measures(self):
         self._initialize_pandas_dataframes()
@@ -143,7 +103,7 @@ class EvaluationResult:
             else:
                 f1_score = 2 * precision * recall / (precision + recall)
 
-            self.confusion_matrix_lower_bounded_filters_pd.loc[filter_name, self.f1_score_col] = f1_score
+            self.confusion_matrix_lower_bounded_filters_df.loc[filter_name, self.f1_score_col] = f1_score
 
     def write_area_under_roc_to_file(self, output_dir: str, attribute_for_filtering: str):
         self._initialize_pandas_dataframes()
@@ -169,7 +129,74 @@ class EvaluationResult:
         plot_metrics.plot_roc_curve(output_dir, false_positive_rate_values, sensitivity_values)
 
     def write_results(self, output_path: str):
-        self.confusion_matrix_bounded_filters_pd.to_csv(
+        self.confusion_matrix_bounded_filters_df.to_csv(
             path_or_buf=open(os.path.join(output_path, constants.CONFUSION_MATRIX_WITH_BOUNDED_FILTERS), 'w'), index=True, sep='\t')
-        self.confusion_matrix_lower_bounded_filters_pd.to_csv(
+        self.confusion_matrix_lower_bounded_filters_df.to_csv(
             path_or_buf=open(os.path.join(output_path, constants.CONFUSION_MATRIX_WITH_LOWER_BOUNDED_FILTERS_NAME), 'w'), index=True, sep='\t')
+
+    def _get_recall(self, filter_to_use: str):
+        tp_bases = self.confusion_matrix_lower_bounded_filters_df.loc[filter_to_use, ConfusionValueType.TP_BASES.name]
+        fn_bases = self.confusion_matrix_lower_bounded_filters_df.loc[filter_to_use, ConfusionValueType.FN_BASES.name]
+        overall = tp_bases + fn_bases
+        return tp_bases / overall if overall else 0.0
+
+    def _get_precision(self, filter_to_use: str):
+        tp_bases = self.confusion_matrix_lower_bounded_filters_df.loc[filter_to_use, ConfusionValueType.TP_BASES.name]
+        fp_bases = self.confusion_matrix_lower_bounded_filters_df.loc[filter_to_use, ConfusionValueType.FP_BASES.name]
+        overall = tp_bases + fp_bases
+        return tp_bases / overall if overall else 0.0
+
+    def _get_false_positive_rate(self, filter_to_use: str):
+        fp_bases = self.confusion_matrix_lower_bounded_filters_df.loc[filter_to_use, ConfusionValueType.FP_BASES.name]
+        tn_bases = self.confusion_matrix_lower_bounded_filters_df.loc[filter_to_use, ConfusionValueType.TN_BASES.name] + \
+                   self.confusion_matrix_lower_bounded_filters_df.loc[filter_to_use, ConfusionValueType.NO_CALL_MATCH_BASES.name]
+        overall = fp_bases + tn_bases
+        return fp_bases / overall if overall else 0.0
+
+    def _initialize_pandas_dataframes(self):
+        """
+        Initializes the full confusion matrices after processing and evaluating the callsets. In particular this method
+        computes and fills in false negative and true negative entries of the confusion matrix for each specified
+        filtering configuration.
+        """
+        self._compute_lower_bounded_confusion_matrix()
+        column_names = ConfusionValueType.get_name_header()
+        if self.confusion_matrix_bounded_filters_df is None:
+            confusion_matrix = np.zeros(shape=(len(self.bounded_filters), len(column_names)), dtype=np.int64)
+            self.confusion_matrix_bounded_filters_df = pd.DataFrame(index=self.bounded_filter_names,
+                                                                    data=confusion_matrix,
+                                                                    columns=column_names)
+            for idx, bounded_filter in enumerate(self.bounded_filters):
+                confusion_entry_for_filter = self.confusion_matrix_bounded_filters[bounded_filter]
+                EvaluationResult._fill_in_dataframe_confusion_matrix_entry(
+                    self.confusion_matrix_bounded_filters_df, bounded_filter, confusion_entry_for_filter,
+                    self.overall_number_positive_bases, self.overall_number_negative_bases)
+
+    def _compute_lower_bounded_confusion_matrix(self):
+        """
+        Helper method that initializes the confusion matrix with lower bounded filters only.
+        """
+        column_names = ConfusionValueType.get_name_header()
+        column_names.append(constants.F1_SCORE_COLUMN_NAME)
+        if self.confusion_matrix_lower_bounded_filters_df is None:
+            confusion_matrix = np.zeros(shape=(len(self.lower_bounded_filters), len(column_names)), dtype=np.int64)
+            self.confusion_matrix_lower_bounded_filters_df = pd.DataFrame(index=self.lower_bounded_filter_names,
+                                                                          data=confusion_matrix,
+                                                                          columns=column_names)
+            for idx, lower_bounded_filter in enumerate(self.lower_bounded_filters):
+                confusion_entry_sum = ClassificationResult()
+                for bounded_filter in self.filter_bin_collection.get_lower_bounded_filter_sum(lower_bounded_filter):
+                    confusion_entry_sum += self.confusion_matrix_bounded_filters[bounded_filter]
+
+                EvaluationResult._fill_in_dataframe_confusion_matrix_entry(
+                    self.confusion_matrix_lower_bounded_filters_df, lower_bounded_filter, confusion_entry_sum,
+                    self.overall_number_positive_bases, self.overall_number_negative_bases)
+
+    @staticmethod
+    def _fill_in_dataframe_confusion_matrix_entry(confusion_df: pd.DataFrame, filter_, result: ClassificationResult,
+                                                  overall_number_positive_bases, overall_number_negative_bases):
+        confusion_df.loc[str(filter_), ConfusionValueType.TP_BASES.name] = result.tp_bases
+        confusion_df.loc[str(filter_), ConfusionValueType.FP_BASES.name] = result.fp_bases
+        confusion_df.loc[str(filter_), ConfusionValueType.NO_CALL_MATCH_BASES.name] = result.no_call_match_bases
+        confusion_df.loc[str(filter_), ConfusionValueType.FN_BASES.name] = overall_number_positive_bases - result.tp_bases
+        confusion_df.loc[str(filter_), ConfusionValueType.TN_BASES.name] = overall_number_negative_bases - result.fp_bases

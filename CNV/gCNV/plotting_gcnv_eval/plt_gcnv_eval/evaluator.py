@@ -38,7 +38,7 @@ class Evaluator:
             callset_filter_num_bins: number of bins to split each filtering interval by
 
         Returns:
-            Evaluation result object that contains confusion matrices for various filtering criteria
+            Evaluation result object that contains confusion matrices fo various filtering criteria
         """
         samples_to_evaluate = list(callset_truth.sample_names.intersection(callset_to_evaluate.sample_names))
         io_plt.log("Found %d out of %d provided samples in the truth file" % (len(samples_to_evaluate), len(callset_to_evaluate.sample_names)))
@@ -55,7 +55,7 @@ class Evaluator:
                                                                                truth_call=truth_call_event_type,
                                                                                eval_call=call_to_evaluate.event_type,
                                                                                call_attributes=call_to_evaluate.call_attributes,
-                                                                               evaluation_result=evaluation_result,)
+                                                                               evaluation_result=evaluation_result)
         return evaluation_result
 
     @staticmethod
@@ -68,7 +68,7 @@ class Evaluator:
             if truth_call == EventType.NO_CALL:
                 evaluation_result.increase_no_call_match_bases(num_bases, call_attributes)
             else:
-                evaluation_result.increase_fn(num_bases, call_attributes)
+                evaluation_result.increase_fn(num_bases)
         elif eval_call == EventType.DUP or eval_call == EventType.DEL:
             if truth_call == eval_call:
                 evaluation_result.increase_tp(num_bases, call_attributes)
@@ -76,6 +76,6 @@ class Evaluator:
                 evaluation_result.increase_fp(num_bases, call_attributes)
         elif eval_call == EventType.REF:
             if truth_call == EventType.NO_CALL:
-                evaluation_result.increase_tn(num_bases, call_attributes)
+                evaluation_result.increase_tn(num_bases)
             else:
-                evaluation_result.increase_fn(num_bases, call_attributes)
+                evaluation_result.increase_fn(num_bases)
