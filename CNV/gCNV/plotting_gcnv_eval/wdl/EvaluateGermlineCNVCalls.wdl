@@ -17,7 +17,12 @@ workflow EvaluateGermlineCNVCalls {
     #### optional basic arguments ####
     ##################################
     Int? preemptible_attempts
-    String gcnv_eval_script = "/root/plot_evaluation_metrics.py"
+    String? gcnv_eval_script
+    Array[String]? callset_filter_names
+    Array[Float]? callset_filter_max_values
+    Array[Int]? callset_filter_num_bins
+    String? attribute_for_roc_creation
+    Float? truth_allele_frequency_threshold
 
     call EvaluateCalls {
         input:
@@ -25,7 +30,12 @@ workflow EvaluateGermlineCNVCalls {
             truth_bed_sample_ids = truth_bed_sample_ids,
             padded_intervals = padded_intervals,
             gcnv_evaluation_docker = gcnv_evaluation_docker,
+            callset_filter_names = callset_filter_names,
+            callset_filter_max_values = callset_filter_max_values,
+            callset_filter_num_bins = callset_filter_num_bins,
+            attribute_for_roc_creation = attribute_for_roc_creation,
             blacklisted_intervals_truth = blacklisted_intervals_truth,
+            truth_allele_frequency_threshold = truth_allele_frequency_threshold,
             ref_fasta_dict = ref_fasta_dict,
             gcnv_eval_script = gcnv_eval_script,
             preemptible_attempts = preemptible_attempts
@@ -43,7 +53,7 @@ task EvaluateCalls {
     Array[File]+ genotyped_segments_vcfs
     File truth_bed_sample_ids
     File padded_intervals
-    String gcnv_eval_script
+    String gcnv_eval_script = "/root/plot_evaluation_metrics.py"
     File blacklisted_intervals_truth
     File ref_fasta_dict
     Array[File]+ gcnv_model_tars
@@ -52,6 +62,7 @@ task EvaluateCalls {
     Array[Float] callset_filter_max_values = [3100, 200]
     Array[Int] callset_filter_num_bins = [1000, 50]
     String attribute_for_roc_creation = 'QS'
+    Float? truth_allele_frequency_threshold
 
     #Runtime parameters
     String gcnv_evaluation_docker
@@ -91,7 +102,9 @@ task EvaluateCalls {
           --callset_filter_num_bins ${sep=' ' callset_filter_num_bins} \
           --attribute_for_roc_creation ${attribute_for_roc_creation} \
           --gcnv_models_directory . \
-          --num_model_shards ${num_model_tars}
+          --num_model_shards ${num_model_tars} \
+          --truth_allele_frequency_threshold  ${default="0.01" truth_allele_frequency_threshold}
+
     >>>
 
     runtime {

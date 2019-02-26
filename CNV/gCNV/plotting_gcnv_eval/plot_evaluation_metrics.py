@@ -25,12 +25,14 @@ def evaluate_performance_metrics_and_write_results(truth_calls: str, ref_dict_fi
                                                    padded_interval_file: str, blacklisted_intervals_truth: str,
                                                    callset_filter_names: list, callset_filter_max_values: list,
                                                    callset_filter_num_bins: list, attribute_for_roc_creation: str,
-                                                   output_dir: str):
+                                                   output_dir: str, truth_allele_frequency_threshold: float):
     io_plt.log("Reading in callsets.")
     ref_dict = ReferenceDictionary(ref_dict_file)
     gcnv_callset = GCNVCallset.read_in_callset(gcnv_segment_vcfs=gcnv_segment_vcfs, reference_dictionary=ref_dict)
-    truth_callset = TruthCallset.read_in_callset(truth_file=truth_calls, interval_file=padded_interval_file,
-                                                 reference_dictionary=ref_dict)
+    truth_callset = TruthCallset.read_in_callset(truth_file=truth_calls,
+                                                 interval_file=padded_interval_file,
+                                                 reference_dictionary=ref_dict,
+                                                 allele_frequency_threshold=truth_allele_frequency_threshold)
     considered_intervals = IntervalCollection.read_interval_list(padded_interval_file)
     blacklisted_intervals_truth = IntervalCollection.read_interval_list(blacklisted_intervals_truth)
     io_plt.log("Evaluating the callset against the truth.")
@@ -88,6 +90,10 @@ def main():
     parser.add_argument('--num_model_shards', metavar='NumberOfModelShards', type=int,
                         help='Number of model shards')
 
+    parser.add_argument('--truth_allele_frequency_threshold', metavar="TruthAlleleFrequencyThreshold", type=float,
+                        help='Specify allele frequency threshold above which the calls will be filtered out in the'
+                             'truth callset')
+
     ###################
     # Parse arguments #
     ###################
@@ -99,6 +105,7 @@ def main():
     truth_calls = args.sorted_truth_calls_bed
     padded_intervals = args.padded_intervals
     blacklisted_intervals_truth = args.blacklisted_intervals_truth
+    truth_allele_frequency_threshold = args.truth_allele_frequency_threshold
 
     # output arguments
     output_dir = args.output_dir
@@ -130,7 +137,7 @@ def main():
     evaluate_performance_metrics_and_write_results(truth_calls, ref_dict_file, gcnv_segment_vcfs, padded_intervals,
                                                    blacklisted_intervals_truth, callset_filter_names,
                                                    callset_filter_max_values, callset_filter_num_bins,
-                                                   attribute_for_roc_creation, output_dir)
+                                                   attribute_for_roc_creation, output_dir, truth_allele_frequency_threshold)
     io_plt.log("SUCCESS")
 
 

@@ -14,7 +14,6 @@ class ConfusionValueType(Enum):
     TN_BASES = 1
     FP_BASES = 2
     FN_BASES = 3
-    NO_CALL_MATCH_BASES = 4
 
     @staticmethod
     def get_name_header()->list:
@@ -29,23 +28,21 @@ class ClassificationResult:
         """
         self.tp_bases = 0
         self.fp_bases = 0
-        self.no_call_match_bases = 0
 
     def __add__(self, other):
         assert type(other) == type(self)
-        assert other.tp_bases >= 0 and other.fp_bases >= 0 and other.no_call_match_bases >= 0
+        assert other.tp_bases >= 0 and other.fp_bases >= 0
 
         result = ClassificationResult()
         result.tp_bases = self.tp_bases + other.tp_bases
         result.fp_bases = self.fp_bases + other.fp_bases
-        result.no_call_match_bases = self.no_call_match_bases + other.no_call_match_bases
         return result
 
     def __radd__(self, other):
         return self.__add__(other)
 
     def get_ndarray(self):
-        return np.array([self.tp_bases, self.fp_bases, self.no_call_match_bases])
+        return np.array([self.tp_bases, self.fp_bases])
 
 
 class EvaluationResult:
@@ -88,11 +85,6 @@ class EvaluationResult:
     def increase_fn(self, num_bases: int):
         self.overall_number_positive_bases += num_bases
 
-    def increase_no_call_match_bases(self, num_bases: int, attribute_to_value_map: dict):
-        filter_bin = self.filter_bin_collection.get_filter_bin_by_attribute_values(attribute_to_value_map)
-        assert filter_bin is not None, filter_bin
-        self.confusion_matrix_bounded_filters[filter_bin].no_call_match_bases += num_bases
-
     def compute_f1_measures(self):
         self._initialize_pandas_dataframes()
         for filter_name in self.lower_bounded_filter_names:
@@ -109,7 +101,6 @@ class EvaluationResult:
         self._initialize_pandas_dataframes()
         assert self.lower_bounded_filters is not None and len(self.lower_bounded_filters) > 0
         filters_list = self.filter_bin_collection.get_single_attribute_lower_bounded_filters(attribute_for_filtering)
-
         if filters_list is None:
             assert len(self.lower_bounded_filters[0].attributes) == 1, "Ambiguous filtering strategy for calculating ROC chosen"
             filters_list = self.lower_bounded_filters
@@ -121,8 +112,6 @@ class EvaluationResult:
         sensitivity_values.append(1.0)
         false_positive_rate_values.insert(0, 0.0)
         false_positive_rate_values.append(1.0)
-        print(sensitivity_values)
-        print(false_positive_rate_values)
         area_under_roc = np.trapz(y=sensitivity_values, x=false_positive_rate_values)
         with open(os.path.join(output_dir, constants.AREA_UNDER_ROC_FILE_NAME), 'w') as output_file:
             output_file.write(str(area_under_roc))
@@ -148,8 +137,7 @@ class EvaluationResult:
 
     def _get_false_positive_rate(self, filter_to_use: str):
         fp_bases = self.confusion_matrix_lower_bounded_filters_df.loc[filter_to_use, ConfusionValueType.FP_BASES.name]
-        tn_bases = self.confusion_matrix_lower_bounded_filters_df.loc[filter_to_use, ConfusionValueType.TN_BASES.name] + \
-                   self.confusion_matrix_lower_bounded_filters_df.loc[filter_to_use, ConfusionValueType.NO_CALL_MATCH_BASES.name]
+        tn_bases = self.confusion_matrix_lower_bounded_filters_df.loc[filter_to_use, ConfusionValueType.TN_BASES.name]
         overall = fp_bases + tn_bases
         return fp_bases / overall if overall else 0.0
 
@@ -197,6 +185,5 @@ class EvaluationResult:
                                                   overall_number_positive_bases, overall_number_negative_bases):
         confusion_df.loc[str(filter_), ConfusionValueType.TP_BASES.name] = result.tp_bases
         confusion_df.loc[str(filter_), ConfusionValueType.FP_BASES.name] = result.fp_bases
-        confusion_df.loc[str(filter_), ConfusionValueType.NO_CALL_MATCH_BASES.name] = result.no_call_match_bases
         confusion_df.loc[str(filter_), ConfusionValueType.FN_BASES.name] = overall_number_positive_bases - result.tp_bases
         confusion_df.loc[str(filter_), ConfusionValueType.TN_BASES.name] = overall_number_negative_bases - result.fp_bases

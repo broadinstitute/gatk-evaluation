@@ -62,11 +62,23 @@ class Evaluator:
     def _evaluate_single_interval_and_update_results(interval: Interval, truth_call: EventType,
                                                      eval_call: EventType,
                                                      call_attributes: dict, evaluation_result: EvaluationResult):
+        """
+
+        Args:
+            interval:
+            truth_call:
+            eval_call:
+            call_attributes:
+            evaluation_result:
+
+        Returns:
+
+        """
         num_bases = interval.end - interval.start
         assert num_bases > 0
         if eval_call == EventType.NO_CALL:
             if truth_call == EventType.NO_CALL:
-                evaluation_result.increase_no_call_match_bases(num_bases, call_attributes)
+                evaluation_result.increase_tn(num_bases)
             else:
                 evaluation_result.increase_fn(num_bases)
         elif eval_call == EventType.DUP or eval_call == EventType.DEL:

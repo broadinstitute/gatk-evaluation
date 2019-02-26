@@ -128,6 +128,7 @@ class TruthCallset(Callset):
         truth_file = kwargs["truth_file"]
         interval_file = kwargs["interval_file"]
         ref_dict = kwargs["reference_dictionary"]
+        allele_frequency_threshold = kwargs["allele_frequency_threshold"]
 
         considered_interval_collection = IntervalCollection.read_interval_list(interval_file)
 
@@ -136,13 +137,23 @@ class TruthCallset(Callset):
                                      dtype={"chrom": str, "start": int, "end": int, "name": str, "svtype": str,
                                             "samples": str})
 
+        # Do a single pass over the truth callset to initialize the set of samples contained in it
+        sample_set = set()
+        for index, row in truth_calls_pd.iterrows():
+            sample_names = set(row["samples"].split(","))
+            sample_set.update(sample_names)
+
+        # Do the second pass to initialize everything else
         sample_to_calls_map = {}
+        # Initialize callset
+        for sample in sample_set:
+            sample_to_calls_map[sample] = []
         previous_interval_truth = None
         number_of_not_rescued_overlapping_events = 0
         number_of_overlapping_events_same_genotype = 0
         number_of_enveloped_events = 0
         overall_events = 0
-        samples_set = set()
+        event_filtered_out_due_allele_freq_threshold = 0
         for index, row in truth_calls_pd.iterrows():
             event_type = cls.__get_event_type_from_sv_type(row["svtype"])
 
@@ -154,51 +165,51 @@ class TruthCallset(Callset):
                     and interval.start < previous_interval_truth.start:
                 raise ValueError("Intervals Interval(%s) and Interval(%s) in truth callset are not in sorted order"
                                  % (previous_interval_truth, interval))
+            # Do not include calls outside of our interval list of interest
             if not considered_interval_collection.find_intersection(interval):
                 continue
-
+            # Do not include calls with allele frequency above specified
             sample_names = set(row["samples"].split(","))
-
+            overall_events += len(sample_names)
+            if len(sample_names) / len(sample_set) > allele_frequency_threshold:
+                event_filtered_out_due_allele_freq_threshold += len(sample_names)
+                continue
             for sample_name in sample_names:
-                samples_set.add(sample_name)
                 call = Call(interval=interval, sample=sample_name, event_type=event_type, call_attributes=None)
-
-                if sample_name in sample_to_calls_map:
-                    overall_events += 1
-                    if sample_to_calls_map.get(sample_name)[-1].interval.intersects_with(interval):
-                        last_interval = sample_to_calls_map.get(sample_name)[-1].interval
-                        last_call = sample_to_calls_map.get(sample_name)[-1]
-                        if last_interval.end <= interval.end and last_call.event_type == call.event_type:
-                            # Merge overlapping events with the same call
-                            new_interval = Interval(interval.chrom, last_interval.start, interval.end)
-                            sample_to_calls_map.get(sample_name)[-1].interval = new_interval
-                            number_of_overlapping_events_same_genotype += 1
-                        elif interval.end < last_interval.end:
-                            # If one call is contained in another only keep the larger call
-                            number_of_enveloped_events += 1
-                        else:
-                            number_of_not_rescued_overlapping_events += 1
-                        continue
-                    sample_to_calls_map.get(sample_name).append(call)
-                else:
-                    sample_to_calls_map[sample_name] = [call]
-
+                if len(sample_to_calls_map.get(sample_name)) > 0 and sample_to_calls_map.get(sample_name)[-1].interval.intersects_with(interval):
+                    last_interval = sample_to_calls_map.get(sample_name)[-1].interval
+                    last_call = sample_to_calls_map.get(sample_name)[-1]
+                    if last_interval.end <= interval.end and last_call.event_type == call.event_type:
+                        # Merge overlapping events with the same call
+                        new_interval = Interval(interval.chrom, last_interval.start, interval.end)
+                        sample_to_calls_map.get(sample_name)[-1].interval = new_interval
+                        number_of_overlapping_events_same_genotype += 1
+                    elif interval.end < last_interval.end:
+                        # If one call is contained in another only keep the larger call
+                        number_of_enveloped_events += 1
+                    else:
+                        number_of_not_rescued_overlapping_events += 1
+                    continue
+                sample_to_calls_map.get(sample_name).append(call)
             previous_interval_truth = interval
 
-        for sample_name in samples_set:
+        for sample_name in sample_set:
             interval_to_call_map = OrderedDict()
+            if sample_to_calls_map.get(sample_name) is None:
+                continue
             for index in range(len(sample_to_calls_map.get(sample_name))):
                 interval_to_call_map[sample_to_calls_map.get(sample_name)[index].interval] = \
                     sample_to_calls_map.get(sample_name)[index]
             sample_to_calls_map[sample_name] = FeatureCollection(interval_to_call_map)
 
-        io_plt.log("There are %d unique samples in truth set" % (len(samples_set)))
-        io_plt.log("There are %d events for all samples in the truth call set" % overall_events)
-        io_plt.log("There are %d intersecting events in truth set that were not rescued" %
+        io_plt.log("There are %d unique samples in truth set." % (len(sample_set)))
+        io_plt.log("There are %d events for all samples in the truth call set." % overall_events)
+        io_plt.log("There are %d events that were filtered out due to the allele frequency threshold." % event_filtered_out_due_allele_freq_threshold)
+        io_plt.log("There are %d intersecting events in truth set that were not rescued." %
                    number_of_not_rescued_overlapping_events)
-        io_plt.log("There are %d overlapping events with the same genotype" %
+        io_plt.log("There are %d overlapping events with the same genotype." %
                    number_of_overlapping_events_same_genotype)
-        io_plt.log("There are %d enveloped events with different genotypes" % number_of_enveloped_events)
+        io_plt.log("There are %d enveloped events with different genotypes." % number_of_enveloped_events)
         return cls(sample_to_calls_map, ref_dict)
 
     @staticmethod
