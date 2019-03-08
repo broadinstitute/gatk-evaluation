@@ -97,25 +97,25 @@ class EvaluationResult:
 
             self.confusion_matrix_lower_bounded_filters_df.loc[filter_name, self.f1_score_col] = f1_score
 
-    def write_area_under_roc_to_file(self, output_dir: str, attribute_for_filtering: str):
+    def write_performance_curves_to_file(self, output_dir: str, attribute_for_filtering: str):
         self._initialize_pandas_dataframes()
         assert self.lower_bounded_filters is not None and len(self.lower_bounded_filters) > 0
-        filters_list = self.filter_bin_collection.get_single_attribute_lower_bounded_filters(attribute_for_filtering)
-        if filters_list is None:
+        filter_list = self.filter_bin_collection.get_single_attribute_lower_bounded_filters(attribute_for_filtering)
+        if filter_list is None:
             assert len(self.lower_bounded_filters[0].attributes) == 1, "Ambiguous filtering strategy for calculating ROC chosen"
-            filters_list = self.lower_bounded_filters
+            filter_list = self.lower_bounded_filters
 
-        sensitivity_values = [self._get_recall(str(f)) for f in filters_list]
-        false_positive_rate_values = [self._get_false_positive_rate(str(f)) for f in filters_list]
+        precision_values = [self._get_precision(str(f)) for f in filter_list]
+        recall_values = [self._get_recall(str(f)) for f in filter_list]
         # append the corner points of the ROC
-        sensitivity_values.insert(0, 0.0)
-        sensitivity_values.append(1.0)
-        false_positive_rate_values.insert(0, 0.0)
-        false_positive_rate_values.append(1.0)
-        area_under_roc = np.trapz(y=sensitivity_values, x=false_positive_rate_values)
-        with open(os.path.join(output_dir, constants.AREA_UNDER_ROC_FILE_NAME), 'w') as output_file:
-            output_file.write(str(area_under_roc))
-        plot_metrics.plot_roc_curve(output_dir, false_positive_rate_values, sensitivity_values)
+        precision_values.insert(0, 1.0)
+        precision_values.append(0.0)
+        recall_values.insert(0, 0.0)
+        recall_values.append(1.0)
+        area_under_precision_recall_curve = np.trapz(y=precision_values, x=recall_values)
+        with open(os.path.join(output_dir, constants.AREA_UNDER_PRECISION_RECALL_FILE_NAME), 'w') as output_file:
+            output_file.write(str(area_under_precision_recall_curve))
+        plot_metrics.plot_precision_recall_curve(output_dir, precision_values, recall_values)
 
     def write_results(self, output_path: str):
         self.confusion_matrix_bounded_filters_df.to_csv(

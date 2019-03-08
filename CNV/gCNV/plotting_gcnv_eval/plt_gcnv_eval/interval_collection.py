@@ -77,7 +77,8 @@ class IntervalCollection(LocatableCollection):
         Args:
             interval: input interval
 
-        Returns: list of intervals in the collection that intersect with a given intervals truncated by the end points
+        Returns:
+            list of intervals in the collection that intersect with a given intervals truncated by the end points
         of a given interval
 
         """
@@ -116,7 +117,7 @@ class IntervalCollection(LocatableCollection):
 
 class FeatureCollection(LocatableCollection):
     """
-    Concrete class for a collection of genomic intervals and corresponding genomic features/'p[;oliu
+    Concrete class for a collection of genomic intervals and corresponding genomic features
     that allows search.
     """
 

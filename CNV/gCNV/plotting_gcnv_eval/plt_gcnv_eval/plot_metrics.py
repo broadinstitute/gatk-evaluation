@@ -106,11 +106,11 @@ def plot_ard_components(output_dir: str, models_dir: str, num_shards: int):
     fig.savefig(_get_plot_full_path(output_dir, "ard_components.png"), dpi=120)
 
 
-def plot_roc_curve(output_dir: str, false_positive_rate_values: List[float], sensitivity_values: List[float]):
+def plot_precision_recall_curve(output_dir: str, precision_values: List[float], recall_values: List[float]):
     fig = plt.figure(figsize=(10, 10), dpi=120)
-    plt.title("ROC curve")
-    plt.xlabel("False Positive Rate")
-    plt.ylabel("True Positive Rate")
-    plt.plot(false_positive_rate_values, sensitivity_values, 'r-')
-    fig.savefig(_get_plot_full_path(output_dir, "roc_curve.png"), dpi=120)
+    plt.title("Precision-Recall curve")
+    plt.xlabel("Recall")
+    plt.ylabel("Precision")
+    plt.plot(recall_values, precision_values, 'r-')
+    fig.savefig(_get_plot_full_path(output_dir, "precision_recall_curve.png"), dpi=120)
 

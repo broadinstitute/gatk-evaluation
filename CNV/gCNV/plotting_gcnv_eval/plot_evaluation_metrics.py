@@ -27,7 +27,7 @@ def evaluate_performance_metrics_and_write_results(truth_calls: str, ref_dict_fi
                                                    callset_filter_num_bins: list, attribute_for_roc_creation: str,
                                                    output_dir: str, truth_allele_frequency_threshold: float):
     io_plt.log("Reading in callsets.")
-    ref_dict = ReferenceDictionary(ref_dict_file)
+    ref_dict = ReferenceDictionary.read_in(ref_dict_file)
     gcnv_callset = GCNVCallset.read_in_callset(gcnv_segment_vcfs=gcnv_segment_vcfs, reference_dictionary=ref_dict)
     truth_callset = TruthCallset.read_in_callset(truth_file=truth_calls,
                                                  interval_file=padded_interval_file,
@@ -46,7 +46,7 @@ def evaluate_performance_metrics_and_write_results(truth_calls: str, ref_dict_fi
                                         callset_filter_num_bins=callset_filter_num_bins)
 
     result.compute_f1_measures()
-    result.write_area_under_roc_to_file(output_dir, attribute_for_roc_creation)
+    result.write_performance_curves_to_file(output_dir, attribute_for_roc_creation)
     result.write_results(output_dir)
 
 

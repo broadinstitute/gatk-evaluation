@@ -23,7 +23,7 @@ class Callset(ABC):
             sample_to_calls_map: a map from samples to a FeatureCollection
             ref_dict: reference dictionary
         """
-
+        super().__init__()
         assert len(sample_to_calls_map) > 0
         self.ref_dict = ref_dict
         self.sample_names = set(sample_to_calls_map.keys())
@@ -33,7 +33,6 @@ class Callset(ABC):
         # TODO add a check to make sure the callset is not malformed, i.e. the calls don't intersect and
         # TODO the intervals in the featurecollections equal to the intervals stored in their corresponding calls
         # TODO Also make sure that code doesn't break if one of the contigs is not in the callset
-        super().__init__()
 
     @classmethod
     @abstractmethod
