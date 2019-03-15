@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 
 import argparse
+import os
 import pandas as pd
 import numpy as np
-import os
 from typing import List
 
 summary_table_file = 'cohorts_and_cases_summary.tsv'
@@ -143,11 +143,11 @@ def main():
 
     parser.add_argument('--entity_ids_file',
                         type=str,
-                        help='File containing entity IDs corresponding to read count paths.')
+                        help='File containing list of entity IDs corresponding to read count paths.')
 
     parser.add_argument('--read_count_paths_file',
                         type=str,
-                        help='File containing read count paths (output of GATK CollectReadCounts) corresponding to entity IDs.')
+                        help='File containing list of read count paths (output of GATK CollectReadCounts) corresponding to entity IDs.')
 
     parser.add_argument('--clustering_table_file',
                         type=str,

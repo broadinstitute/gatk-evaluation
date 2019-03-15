@@ -188,7 +188,7 @@ workflow CNVGermlineCohortFromCoverageWorkflow {
         input:
             cohort_entity_id = cohort_entity_id,
             intervals = FilterIntervals.filtered_intervals,
-            read_count_files = CollectCounts.counts,
+            read_count_files = read_count_files,
             contig_ploidy_priors = contig_ploidy_priors,
             gatk4_jar_override = gatk4_jar_override,
             gatk_docker = gatk_docker,
@@ -214,7 +214,7 @@ workflow CNVGermlineCohortFromCoverageWorkflow {
             input:
                 scatter_index = scatter_index,
                 cohort_entity_id = cohort_entity_id,
-                read_count_files = CollectCounts.counts,
+                read_count_files = read_count_files,
                 contig_ploidy_calls_tar = DetermineGermlineContigPloidyCohortMode.contig_ploidy_calls_tar,
                 intervals = ScatterIntervals.scattered_interval_lists[scatter_index],
                 annotated_intervals = AnnotateIntervals.annotated_intervals,
@@ -265,7 +265,7 @@ workflow CNVGermlineCohortFromCoverageWorkflow {
 
     Array[Array[File]] call_tars_sample_by_shard = transpose(GermlineCNVCallerCohortMode.gcnv_call_tars)
 
-    scatter (sample_index in range(length(CollectCounts.entity_id))) {
+    scatter (sample_index in range(length(read_count_files))) {
         call CNVTasks.PostprocessGermlineCNVCalls {
             input:
                 entity_id = CollectCounts.entity_id[sample_index],
@@ -287,8 +287,8 @@ workflow CNVGermlineCohortFromCoverageWorkflow {
 
     output {
         File preprocessed_intervals = PreprocessIntervals.preprocessed_intervals
-        Array[File] read_count_files_entity_ids = CollectCounts.entity_id
-        Array[File] read_count_files = CollectCounts.counts
+        Array[File] read_count_files_entity_ids = entity_ids
+        Array[File] read_count_files = read_count_files
         File? annotated_intervals = AnnotateIntervals.annotated_intervals
         File filtered_intervals = FilterIntervals.filtered_intervals
         File contig_ploidy_model_tar = DetermineGermlineContigPloidyCohortMode.contig_ploidy_model_tar
