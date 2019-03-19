@@ -1,4 +1,4 @@
-import "../cnv_common_tasks.wdl" as CNVTasks
+import "cnv_common_tasks.wdl" as CNVTasks
 
 workflow CNVGermlineCohortFromCoverageWorkflow {
 
@@ -7,8 +7,8 @@ workflow CNVGermlineCohortFromCoverageWorkflow {
     ##################################
     File intervals
     File? blacklist_intervals
-    Array[String]+ read_count_files
     Array[String]+ entity_ids
+    Array[String]+ read_count_files
     String cohort_entity_id
     File contig_ploidy_priors
     Int num_intervals_per_scatter
@@ -58,12 +58,6 @@ workflow CNVGermlineCohortFromCoverageWorkflow {
     Float? extreme_count_filter_maximum_percentile
     Float? extreme_count_filter_percentage_of_samples
     Int? mem_gb_for_filter_intervals
-
-    ##############################################
-    #### optional arguments for CollectCounts ####
-    ##############################################
-    String? collect_counts_format
-    Int? mem_gb_for_collect_counts
 
     ########################################################################
     #### optional arguments for DetermineGermlineContigPloidyCohortMode ####
@@ -265,10 +259,10 @@ workflow CNVGermlineCohortFromCoverageWorkflow {
 
     Array[Array[File]] call_tars_sample_by_shard = transpose(GermlineCNVCallerCohortMode.gcnv_call_tars)
 
-    scatter (sample_index in range(length(read_count_files))) {
+    scatter (sample_index in range(length(entity_ids))) {
         call CNVTasks.PostprocessGermlineCNVCalls {
             input:
-                entity_id = CollectCounts.entity_id[sample_index],
+                entity_id = entity_ids[sample_index],
                 gcnv_calls_tars = call_tars_sample_by_shard[sample_index],
                 gcnv_model_tars = GermlineCNVCallerCohortMode.gcnv_model_tar,
                 calling_configs = GermlineCNVCallerCohortMode.calling_config_json,
@@ -287,8 +281,6 @@ workflow CNVGermlineCohortFromCoverageWorkflow {
 
     output {
         File preprocessed_intervals = PreprocessIntervals.preprocessed_intervals
-        Array[File] read_count_files_entity_ids = entity_ids
-        Array[File] read_count_files = read_count_files
         File? annotated_intervals = AnnotateIntervals.annotated_intervals
         File filtered_intervals = FilterIntervals.filtered_intervals
         File contig_ploidy_model_tar = DetermineGermlineContigPloidyCohortMode.contig_ploidy_model_tar
@@ -333,7 +325,6 @@ task DetermineGermlineContigPloidyCohortMode {
 
     command <<<
         set -e
-        mkdir ${output_dir_}
         export GATK_LOCAL_JAR=${default="/root/gatk.jar" gatk4_jar_override}
         export MKL_NUM_THREADS=${default=8 cpu}
         export OMP_NUM_THREADS=${default=8 cpu}
@@ -441,19 +432,18 @@ task GermlineCNVCallerCohortMode {
 
     command <<<
         set -e
-        mkdir ${output_dir_}
         export GATK_LOCAL_JAR=${default="/root/gatk.jar" gatk4_jar_override}
         export MKL_NUM_THREADS=${default=8 cpu}
         export OMP_NUM_THREADS=${default=8 cpu}
 
-        mkdir contig-ploidy-calls-dir
-        tar xzf ${contig_ploidy_calls_tar} -C contig-ploidy-calls-dir
+        mkdir contig-ploidy-calls
+        tar xzf ${contig_ploidy_calls_tar} -C contig-ploidy-calls
 
         gatk --java-options "-Xmx${command_mem_mb}m"  GermlineCNVCaller \
             --run-mode COHORT \
             -L ${intervals} \
             --input ${sep=" --input " read_count_files} \
-            --contig-ploidy-calls contig-ploidy-calls-dir \
+            --contig-ploidy-calls contig-ploidy-calls \
             ${"--annotated-intervals " + annotated_intervals} \
             --interval-merging-rule OVERLAPPING_ONLY \
             --output ${output_dir_} \
@@ -508,6 +498,8 @@ task GermlineCNVCallerCohortMode {
             tar czf ${cohort_entity_id}-gcnv-calls-shard-${scatter_index}-sample-$CURRENT_SAMPLE_WITH_LEADING_ZEROS.tar.gz -C ${output_dir_}/${cohort_entity_id}-calls/SAMPLE_$CURRENT_SAMPLE .
             let CURRENT_SAMPLE=CURRENT_SAMPLE+1
         done
+
+        rm -rf contig-ploidy-calls
     >>>
 
     runtime {

@@ -1,15 +1,14 @@
-import "cnv_germline_case_from_coverage_workflow.wdl" as GermlineCNVCaseWorkflow
+import "cnv_germline_case_from_coverage workflow.wdl" as CNVGermlineCaseFromCoverageWorkflow
 
-workflow CNVGermlineCaseScatteredFromCoverageWorkflow {
+workflow CNVGermlineCaseScatteredWorkflow {
 
     ##################################
     #### required basic arguments ####
     ##################################
-    File intervals
     File? blacklist_intervals
     File filtered_intervals
-    Array[String]+ read_count_files
     Array[String]+ entity_ids
+    Array[String]+ read_count_files
     File contig_ploidy_model_tar
     Array[File]+ gcnv_model_tars
     Int num_intervals_per_scatter
@@ -25,12 +24,6 @@ workflow CNVGermlineCaseScatteredFromCoverageWorkflow {
     File? gatk4_jar_override
     Int? preemptible_attempts
 
-    ####################################################
-    #### optional arguments for PreprocessIntervals ####
-    ####################################################
-    Int? padding
-    Int? bin_length
-
     ######################################################################
     #### optional arguments for DetermineGermlineContigPloidyCaseMode ####
     ######################################################################
@@ -38,7 +31,7 @@ workflow CNVGermlineCaseScatteredFromCoverageWorkflow {
     Float? ploidy_sample_psi_scale
     Int? mem_gb_for_determine_germline_contig_ploidy
     Int? cpu_for_determine_germline_contig_ploidy
-    Int? disk_for_determine_germline_contig_ploidy    
+    Int? disk_for_determine_germline_contig_ploidy
 
     ##########################################################
     #### optional arguments for GermlineCNVCallerCaseMode ####
@@ -85,31 +78,30 @@ workflow CNVGermlineCaseScatteredFromCoverageWorkflow {
     Int ref_copy_number_autosomal_contigs
     Array[String]? allosomal_contigs
 
-    call SplitInputArray as SplitInputReadCountFilesList {
-        input:
-            input_array = read_count_files,
-            num_inputs_in_scatter_block = num_samples_per_scatter_block,
-            gatk_docker = gatk_docker
-    }
-    
-    call SplitInputArray as SplitInputEntityIdsList {
+    call SplitInputArray as SplitInputEntityIDsList {
         input:
             input_array = entity_ids,
             num_inputs_in_scatter_block = num_samples_per_scatter_block,
             gatk_docker = gatk_docker
     }
 
-    Array[Array[String]] split_read_count_files = SplitInputReadCountFilesList.split_array
-    Array[Array[String]] split_entity_ids = SplitInputEntityIdsList.split_array
+    call SplitInputArray as SplitInputReadCountFilesList {
+        input:
+            input_array = read_count_files,
+            num_inputs_in_scatter_block = num_samples_per_scatter_block,
+            gatk_docker = gatk_docker
+    }
 
-    scatter (subarray_index in range(length(split_read_count_files))) {
-        call GermlineCNVCaseWorkflow.CNVGermlineCaseWorkflow {
+    Array[Array[String]] split_entity_ids = SplitInputEntityIDsList.split_array
+    Array[Array[String]] split_read_count_files = SplitInputReadCountFilesList.split_array
+
+    scatter (subarray_index in range(length(split_entity_ids))) {
+        call CNVGermlineCaseFromCoverageWorkflow.CNVGermlineCaseFromCoverageWorkflow {
             input:
-                intervals = intervals,
                 blacklist_intervals = blacklist_intervals,
                 filtered_intervals = filtered_intervals,
-                read_count_files = split_read_count_files[subarray_index],
                 entity_ids = split_entity_ids[subarray_index],
+                read_count_files = split_read_count_files[subarray_index],
                 contig_ploidy_model_tar = contig_ploidy_model_tar,
                 gcnv_model_tars = gcnv_model_tars,
                 num_intervals_per_scatter = num_intervals_per_scatter,
@@ -119,10 +111,6 @@ workflow CNVGermlineCaseScatteredFromCoverageWorkflow {
                 gatk_docker = gatk_docker,
                 gatk4_jar_override = gatk4_jar_override,
                 preemptible_attempts = preemptible_attempts,
-                padding = padding,
-                bin_length = bin_length,
-                collect_counts_format = collect_counts_format,
-                mem_gb_for_collect_counts = mem_gb_for_collect_counts,
                 ploidy_mapping_error_rate = ploidy_mapping_error_rate,
                 ploidy_sample_psi_scale = ploidy_sample_psi_scale,
                 mem_gb_for_determine_germline_contig_ploidy = mem_gb_for_determine_germline_contig_ploidy,
@@ -160,17 +148,16 @@ workflow CNVGermlineCaseScatteredFromCoverageWorkflow {
                 gcnv_caller_external_admixing_rate = gcnv_caller_external_admixing_rate,
                 gcnv_disable_annealing = gcnv_disable_annealing,
                 ref_copy_number_autosomal_contigs = ref_copy_number_autosomal_contigs,
-                allosomal_contigs = allosomal_contigs 
+                allosomal_contigs = allosomal_contigs
         }
     }
 
     output {
-        Array[File] preprocessed_intervals = CNVGermlineCaseWorkflow.preprocessed_intervals
-        Array[File] contig_ploidy_calls_tars = CNVGermlineCaseWorkflow.contig_ploidy_calls_tar
-        Array[Array[Array[File]]] gcnv_calls_tars = CNVGermlineCaseWorkflow.gcnv_calls_tars
-        Array[Array[File]] gcnv_tracking_tars = CNVGermlineCaseWorkflow.gcnv_tracking_tars
-        Array[Array[File]] genotyped_intervals_vcf = CNVGermlineCaseWorkflow.genotyped_intervals_vcf
-        Array[Array[File]] genotyped_segments_vcf = CNVGermlineCaseWorkflow.genotyped_segments_vcf
+        Array[File] contig_ploidy_calls_tars = CNVGermlineCaseFromCoverageWorkflow.contig_ploidy_calls_tar
+        Array[Array[Array[File]]] gcnv_calls_tars = CNVGermlineCaseFromCoverageWorkflow.gcnv_calls_tars
+        Array[Array[File]] gcnv_tracking_tars = CNVGermlineCaseFromCoverageWorkflow.gcnv_tracking_tars
+        Array[Array[File]] genotyped_intervals_vcf = CNVGermlineCaseFromCoverageWorkflow.genotyped_intervals_vcf
+        Array[Array[File]] genotyped_segments_vcf = CNVGermlineCaseFromCoverageWorkflow.genotyped_segments_vcf
     }
 }
 

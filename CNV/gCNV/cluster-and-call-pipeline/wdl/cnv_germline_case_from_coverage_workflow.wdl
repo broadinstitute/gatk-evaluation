@@ -1,15 +1,14 @@
-import "../cnv_common_tasks.wdl" as CNVTasks
+import "cnv_common_tasks.wdl" as CNVTasks
 
 workflow CNVGermlineCaseFromCoverageWorkflow {
 
     ##################################
     #### required basic arguments ####
     ##################################
-    File preprocessed_intervals
     File? blacklist_intervals
     File filtered_intervals
-    Array[String]+ read_count_files
     Array[String]+ entity_ids
+    Array[String]+ read_count_files
     File contig_ploidy_model_tar
     Array[File]+ gcnv_model_tars
     Int num_intervals_per_scatter
@@ -23,12 +22,6 @@ workflow CNVGermlineCaseFromCoverageWorkflow {
     ##################################
     File? gatk4_jar_override
     Int? preemptible_attempts
-    
-    ####################################################
-    #### optional arguments for PreprocessIntervals ####
-    ####################################################
-    Int? padding
-    Int? bin_length
 
     ######################################################################
     #### optional arguments for DetermineGermlineContigPloidyCaseMode ####
@@ -83,20 +76,6 @@ workflow CNVGermlineCaseFromCoverageWorkflow {
     ###################################################
     Int ref_copy_number_autosomal_contigs
     Array[String]? allosomal_contigs
-
-    call CNVTasks.PreprocessIntervals {
-        input:
-            intervals = intervals,
-            blacklist_intervals = blacklist_intervals,
-            ref_fasta = ref_fasta,
-            ref_fasta_fai = ref_fasta_fai,
-            ref_fasta_dict = ref_fasta_dict,
-            padding = padding,
-            bin_length = bin_length,
-            gatk4_jar_override = gatk4_jar_override,
-            gatk_docker = gatk_docker,
-            preemptible_attempts = preemptible_attempts
-    }
 
     call DetermineGermlineContigPloidyCaseMode {
         input:
@@ -165,7 +144,7 @@ workflow CNVGermlineCaseFromCoverageWorkflow {
 
     Array[Array[File]] call_tars_sample_by_shard = transpose(GermlineCNVCallerCaseMode.gcnv_call_tars)
 
-    scatter (sample_index in range(length(read_count_files))) {
+    scatter (sample_index in range(length(entity_ids))) {
         call CNVTasks.PostprocessGermlineCNVCalls {
             input:
                 entity_id = entity_ids[sample_index],
@@ -186,7 +165,6 @@ workflow CNVGermlineCaseFromCoverageWorkflow {
     }
 
     output {
-        File preprocessed_intervals = PreprocessIntervals.preprocessed_intervals
         File contig_ploidy_calls_tar = DetermineGermlineContigPloidyCaseMode.contig_ploidy_calls_tar
         Array[Array[File]] gcnv_calls_tars = GermlineCNVCallerCaseMode.gcnv_call_tars
         Array[File] gcnv_tracking_tars = GermlineCNVCallerCaseMode.gcnv_tracking_tar
@@ -223,17 +201,16 @@ task DetermineGermlineContigPloidyCaseMode {
 
     command <<<
         set -e
-        mkdir ${output_dir_}
         export GATK_LOCAL_JAR=${default="/root/gatk.jar" gatk4_jar_override}
         export MKL_NUM_THREADS=${default=8 cpu}
         export OMP_NUM_THREADS=${default=8 cpu}
 
-        mkdir input-contig-ploidy-model
-        tar xzf ${contig_ploidy_model_tar} -C input-contig-ploidy-model
+        mkdir contig-ploidy-model
+        tar xzf ${contig_ploidy_model_tar} -C contig-ploidy-model
 
         gatk --java-options "-Xmx${command_mem_mb}m" DetermineGermlineContigPloidy \
             --input ${sep=" --input " read_count_files} \
-            --model input-contig-ploidy-model \
+            --model contig-ploidy-model \
             --output ${output_dir_} \
             --output-prefix case \
             --verbosity DEBUG \
@@ -241,6 +218,8 @@ task DetermineGermlineContigPloidyCaseMode {
             --sample-psi-scale ${default="0.0001" sample_psi_scale}
 
         tar czf case-contig-ploidy-calls.tar.gz -C ${output_dir_}/case-calls .
+
+        rm -rf contig-ploidy-model
     >>>
 
     runtime {
@@ -317,13 +296,12 @@ task GermlineCNVCallerCaseMode {
 
     command <<<
         set -e
-        mkdir ${output_dir_}
         export GATK_LOCAL_JAR=${default="/root/gatk.jar" gatk4_jar_override}
         export MKL_NUM_THREADS=${default=8 cpu}
         export OMP_NUM_THREADS=${default=8 cpu}
 
-        mkdir contig-ploidy-calls-dir
-        tar xzf ${contig_ploidy_calls_tar} -C contig-ploidy-calls-dir
+        mkdir contig-ploidy-calls
+        tar xzf ${contig_ploidy_calls_tar} -C contig-ploidy-calls
 
         mkdir gcnv-model
         tar xzf ${gcnv_model_tar} -C gcnv-model
@@ -331,7 +309,7 @@ task GermlineCNVCallerCaseMode {
         gatk --java-options "-Xmx${command_mem_mb}m"  GermlineCNVCaller \
             --run-mode CASE \
             --input ${sep=" --input " read_count_files} \
-            --contig-ploidy-calls contig-ploidy-calls-dir \
+            --contig-ploidy-calls contig-ploidy-calls \
             --model gcnv-model \
             --output ${output_dir_} \
             --output-prefix case \
@@ -375,6 +353,9 @@ task GermlineCNVCallerCaseMode {
             tar czf case-gcnv-calls-shard-${scatter_index}-sample-$CURRENT_SAMPLE_WITH_LEADING_ZEROS.tar.gz -C ${output_dir_}/case-calls/SAMPLE_$CURRENT_SAMPLE .
             let CURRENT_SAMPLE=CURRENT_SAMPLE+1
         done
+
+        rm -rf contig-ploidy-calls
+        rm -rf gcnv-model
     >>>
 
     runtime {

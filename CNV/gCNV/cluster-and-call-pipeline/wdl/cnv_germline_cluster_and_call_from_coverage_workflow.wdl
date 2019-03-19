@@ -1,6 +1,6 @@
-import "cluster_samples_from_coverage.wdl" as ClusterSamplesFromCoverage
-import "germline/cnv_germline_cohort_from_coverage.wdl" as CNVGermlineCohortFromCoverageWorkflow
-import "germline/cnv_germline_case_scattered_from_coverage.wdl" as CNVGermlineCaseScatteredFromCoverageWorkflow
+import "cluster_samples_from_coverage_workflow.wdl" as ClusterSamplesFromCoverageWorkflow
+import "cnv_germline_cohort_from_coverage_workflow.wdl" as CNVGermlineCohortFromCoverageWorkflow
+import "cnv_germline_case_scattered_from_coverage_workflow.wdl" as CNVGermlineCaseScatteredFromCoverageWorkflow
 
 workflow CNVGermlineClusterAndCallFromCoverageWorkflow {
 
@@ -9,7 +9,17 @@ workflow CNVGermlineClusterAndCallFromCoverageWorkflow {
     ##################################
     Array[String]+ entity_ids
     Array[String]+ read_count_paths
+    Array[String]+ read_count_paths_for_clustering
     Int maximum_number_of_clusters
+    File training_blacklist
+    Int number_of_training_samples_per_model
+    File intervals
+    File ref_fasta_dict
+    File ref_fasta_fai
+    File ref_fasta
+    Int num_intervals_per_scatter
+    Int num_samples_per_scatter_block
+    Int ref_copy_number_autosomal_contigs
     String gatk_docker
 
     ##################################
@@ -18,20 +28,28 @@ workflow CNVGermlineClusterAndCallFromCoverageWorkflow {
     File? gatk4_jar_override
     Int? preemptible_attempts
 
-    ###############################################
-    #### optional arguments for ClusterSamples ####
-    ###############################################
-    File? clustering_prior_table        # currently not used
-    Int? mem_gb_for_cluster_samples
+    #############################################################
+    #### optional shared arguments for CNVGermline workflows ####
+    #############################################################
+    File? blacklist_intervals
+    Float? ploidy_mapping_error_rate
+    Float? ploidy_sample_psi_scale
+    Float? gcnv_p_alt
+    Float? gcnv_cnv_coherence_length
+    Int? gcnv_max_copy_number
+    Float? gcnv_mapping_error_rate
+    Float? gcnv_sample_psi_scale
+    Float? gcnv_depth_correction_tau
+    String? gcnv_copy_number_posterior_expectation_mode
+    Int? gcnv_active_class_padding_hybrid_mode
+    Array[String]? allosomal_contigs
 
-    call ClusterSamplesFromCoverage.ClusterSamples as ClusterSamples {
+    call ClusterSamplesFromCoverageWorkflow.ClusterSamplesFromCoverageWorkflow {
         input:
             entity_ids = entity_ids,
-            read_count_files = read_count_paths,
-            clustering_prior_table = clustering_prior_table,
+            read_count_files = read_count_paths_for_clustering,
             maximum_number_of_clusters = maximum_number_of_clusters,
             gatk_docker = gatk_docker,
-            mem_gb = mem_gb_for_cluster_samples,
             preemptible_attempts = preemptible_attempts
     }
 
@@ -39,10 +57,10 @@ workflow CNVGermlineClusterAndCallFromCoverageWorkflow {
         input:
             entity_ids = entity_ids,
             read_count_paths = read_count_paths,
-            clustering_table = ClusterSamples.clustering_table,
-            maximum_number_of_clusters = maximum_number_of_clusters,
+            clustering_table = ClusterSamplesFromCoverageWorkflow.clustering_table,
+            training_blacklist = training_blacklist,
+            number_of_training_samples_per_model = number_of_training_samples_per_model,
             gatk_docker = gatk_docker,
-            mem_gb = mem_gb_for_cluster_samples,
             preemptible_attempts = preemptible_attempts
     }
 
@@ -53,8 +71,8 @@ workflow CNVGermlineClusterAndCallFromCoverageWorkflow {
     #call case mode
 
     output {
-        File clustering_table = ClusterSamples.clustering_table
-        File sample_clusters_plot = ClusterSamples.sample_clusters_plot
+        File clustering_table = ClusterSamplesFromCoverageWorkflow.clustering_table
+        File sample_clusters_plot = ClusterSamplesFromCoverageWorkflow.sample_clusters_plot
     }
 }
 

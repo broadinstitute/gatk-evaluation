@@ -1,33 +1,24 @@
-workflow ClusterSamplesFromCoverage {
+workflow ClusterSamplesFromCoverageWorkflow {
 
     ##################################
     #### required basic arguments ####
     ##################################
     Array[String]+ entity_ids
-    Array[String]+ read_count_paths
+    Array[String]+ read_count_files
     Int maximum_number_of_clusters
     String gatk_docker
 
     ##################################
     #### optional basic arguments ####
     ##################################
-    File? gatk4_jar_override
     Int? preemptible_attempts
-
-    ###############################################
-    #### optional arguments for ClusterSamples ####
-    ###############################################
-    File? clustering_prior_table        # currently not used
-    Int? mem_gb_for_cluster_samples
 
     call ClusterSamples {
         input:
             entity_ids = entity_ids,
-            read_count_files = read_count_paths,
-            clustering_prior_table = clustering_prior_table,
+            read_count_files = read_count_files,
             maximum_number_of_clusters = maximum_number_of_clusters,
             gatk_docker = gatk_docker,
-            mem_gb = mem_gb_for_cluster_samples,
             preemptible_attempts = preemptible_attempts
     }
 
@@ -40,8 +31,8 @@ workflow ClusterSamplesFromCoverage {
 task ClusterSamples {
     Array[String]+ entity_ids
     Array[File]+ read_count_files       # localized files
+    Int maximum_number_of_clusters
     File? clustering_prior_table        # currently not used
-    Int? maximum_number_of_clusters
 
     # Runtime parameters
     String gatk_docker
@@ -68,7 +59,7 @@ task ClusterSamples {
             def cluster_sample_and_write_results(output_dir: str,
                                                  entity_ids_file: str,
                                                  read_counts_fof: str,
-                                                 max_clusters: int):
+                                                 maximum_number_of_clusters: int):
                     #load all files
                     entity_ids = np.loadtxt(entity_ids_file, dtype=bytes).astype(str)
                     read_count_files = np.loadtxt(read_counts_fof, dtype=bytes).astype(str)
@@ -98,11 +89,11 @@ task ClusterSamples {
                     np.savetxt(os.path.join(output_dir, 'samplesum.tsv'), samplesum, delimiter='\t')
 
                     clusters = shc.fcluster(Z, t=0.003, criterion="distance")
-                    assert np.max(clusters) < max_clusters, "The clustering algorithm found more than the maximum number of clusters allowed"
+                    assert np.max(clusters) < maximum_number_of_clusters, "The clustering algorithm found more than the maximum number of clusters allowed"
                     np.savetxt(os.path.join(output_dir, 'clusters.tsv'), clusters, delimiter='\t')
 
-                    column_names = ["Cluster" + str(i + 1) for i in range(max_clusters)]
-                    clustering_table = np.zeros(shape=(num_samples, max_clusters), dtype=np.float64)
+                    column_names = ["Cluster" + str(i + 1) for i in range(maximum_number_of_clusters)]
+                    clustering_table = np.zeros(shape=(num_samples, maximum_number_of_clusters), dtype=np.float64)
                     for idx, cluster in enumerate(clusters):
                         clustering_table[idx][int(cluster) - 1] = 1.0
                     clustering_table_df = pd.DataFrame(data=clustering_table, index=entity_ids, columns=column_names)
