@@ -248,6 +248,10 @@ task DetermineCohortsAndCases {
     }
 
     output {
-        #update this
+        Array[File] training_entity_ids_per_cluster = glob('*-training-entity_ids.txt')
+        Array[File] training_read_count_paths_per_cluster = glob('*-training-read_count_paths.txt')
+        Array[File] case_entity_ids_per_cluster = glob('*-case-entity_ids.txt')
+        Array[File] case_read_count_paths_per_cluster = glob('*-case-read_count_paths.txt')
+        File summary_table = 'cohorts_and_cases_summary.tsv'
     }
 }
