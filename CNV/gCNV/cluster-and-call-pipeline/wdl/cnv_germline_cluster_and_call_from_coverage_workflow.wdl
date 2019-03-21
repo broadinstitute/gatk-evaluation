@@ -76,6 +76,8 @@ workflow CNVGermlineClusterAndCallFromCoverageWorkflow {
     output {
         File clustering_table = ClusterSamplesFromCoverageWorkflow.clustering_table
         File sample_clusters_plot = ClusterSamplesFromCoverageWorkflow.sample_clusters_plot
+
+        File summary_table = DetermineCohortsAndCases.summary_table
     }
 }
 
