@@ -1,4 +1,4 @@
-import "cnv_germline_case_from_coverage workflow.wdl" as CNVGermlineCaseFromCoverageWorkflow
+import "cnv_germline_case_from_coverage_workflow.wdl" as CNVGermlineCaseFromCoverageWorkflow
 
 workflow CNVGermlineCaseScatteredWorkflow {
 
