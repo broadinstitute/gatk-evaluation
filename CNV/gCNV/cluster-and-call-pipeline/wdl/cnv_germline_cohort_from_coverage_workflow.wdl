@@ -68,6 +68,7 @@ workflow CNVGermlineCohortFromCoverageWorkflow {
     Float? ploidy_sample_psi_scale
     Int? mem_gb_for_determine_germline_contig_ploidy
     Int? cpu_for_determine_germline_contig_ploidy
+    Int? disk_for_determine_germline_contig_ploidy
 
     ############################################################
     #### optional arguments for GermlineCNVCallerCohortMode ####
@@ -79,6 +80,7 @@ workflow CNVGermlineCohortFromCoverageWorkflow {
     Int? gcnv_max_copy_number
     Int? mem_gb_for_germline_cnv_caller
     Int? cpu_for_germline_cnv_caller
+    Int? disk_for_germline_cnv_caller
 
     # optional arguments for germline CNV denoising model
     Int? gcnv_max_bias_factors
@@ -188,6 +190,7 @@ workflow CNVGermlineCohortFromCoverageWorkflow {
             gatk_docker = gatk_docker,
             mem_gb = mem_gb_for_determine_germline_contig_ploidy,
             cpu = cpu_for_determine_germline_contig_ploidy,
+            disk_space_gb = disk_for_determine_germline_contig_ploidy,
             mean_bias_standard_deviation = ploidy_mean_bias_standard_deviation,
             mapping_error_rate = ploidy_mapping_error_rate,
             global_psi_scale = ploidy_global_psi_scale,
@@ -216,6 +219,7 @@ workflow CNVGermlineCohortFromCoverageWorkflow {
                 gatk_docker = gatk_docker,
                 mem_gb = mem_gb_for_germline_cnv_caller,
                 cpu = cpu_for_germline_cnv_caller,
+                disk_space_gb = disk_for_germline_cnv_caller,
                 p_alt = gcnv_p_alt,
                 p_active = gcnv_p_active,
                 cnv_coherence_length = gcnv_cnv_coherence_length,

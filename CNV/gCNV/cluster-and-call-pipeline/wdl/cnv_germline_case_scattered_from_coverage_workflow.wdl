@@ -1,6 +1,6 @@
 import "cnv_germline_case_from_coverage_workflow.wdl" as CNVGermlineCaseFromCoverageWorkflow
 
-workflow CNVGermlineCaseScatteredWorkflow {
+workflow CNVGermlineCaseScatteredFromCoverageWorkflow {
 
     ##################################
     #### required basic arguments ####
@@ -156,8 +156,8 @@ workflow CNVGermlineCaseScatteredWorkflow {
         Array[File] contig_ploidy_calls_tars = CNVGermlineCaseFromCoverageWorkflow.contig_ploidy_calls_tar
         Array[Array[Array[File]]] gcnv_calls_tars = CNVGermlineCaseFromCoverageWorkflow.gcnv_calls_tars
         Array[Array[File]] gcnv_tracking_tars = CNVGermlineCaseFromCoverageWorkflow.gcnv_tracking_tars
-        Array[Array[File]] genotyped_intervals_vcf = CNVGermlineCaseFromCoverageWorkflow.genotyped_intervals_vcf
-        Array[Array[File]] genotyped_segments_vcf = CNVGermlineCaseFromCoverageWorkflow.genotyped_segments_vcf
+        Array[Array[File]] genotyped_intervals_vcfs = CNVGermlineCaseFromCoverageWorkflow.genotyped_intervals_vcf
+        Array[Array[File]] genotyped_segments_vcfs = CNVGermlineCaseFromCoverageWorkflow.genotyped_segments_vcf
     }
 }
 

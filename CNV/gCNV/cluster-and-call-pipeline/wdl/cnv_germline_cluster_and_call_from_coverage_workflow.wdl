@@ -14,6 +14,7 @@ workflow CNVGermlineClusterAndCallFromCoverageWorkflow {
     File training_blacklist
     Int number_of_training_samples_per_model
     File intervals
+    File contig_ploidy_priors
     File ref_fasta_dict
     File ref_fasta_fai
     File ref_fasta
@@ -21,6 +22,10 @@ workflow CNVGermlineClusterAndCallFromCoverageWorkflow {
     Int num_samples_per_scatter_block
     Int ref_copy_number_autosomal_contigs
     String gatk_docker
+
+    #############################################################
+    #### shared optional arguments for CNVGermline workflows ####
+    #############################################################
 
     ##################################
     #### optional basic arguments ####
@@ -32,20 +37,97 @@ workflow CNVGermlineClusterAndCallFromCoverageWorkflow {
     File? gatk4_jar_override
     Int? preemptible_attempts
 
-    #############################################################
-    #### optional shared arguments for CNVGermline workflows ####
-    #############################################################
+    ####################################################
+    #### optional arguments for PreprocessIntervals ####
+    ####################################################
+    Int? padding
+    Int? bin_length
+
+    ##################################################
+    #### optional arguments for AnnotateIntervals ####
+    ##################################################
+    File? mappability_track_bed
+    File? mappability_track_bed_idx
+    File? segmental_duplication_track_bed
+    File? segmental_duplication_track_bed_idx
+    Int? feature_query_lookahead
+    Int? mem_gb_for_annotate_intervals
+
+    #################################################
+    #### optional arguments for FilterIntervals ####
+    ################################################
+    File? blacklist_intervals_for_filter_intervals
+    Float? minimum_gc_content
+    Float? maximum_gc_content
+    Float? minimum_mappability
+    Float? maximum_mappability
+    Float? minimum_segmental_duplication_content
+    Float? maximum_segmental_duplication_content
+    Int? low_count_filter_count_threshold
+    Float? low_count_filter_percentage_of_samples
+    Float? extreme_count_filter_minimum_percentile
+    Float? extreme_count_filter_maximum_percentile
+    Float? extreme_count_filter_percentage_of_samples
+    Int? mem_gb_for_filter_intervals
+
+    ########################################################################
+    #### optional arguments for DetermineGermlineContigPloidyCohortMode ####
+    ########################################################################
+    Float? ploidy_mean_bias_standard_deviation
     Float? ploidy_mapping_error_rate
+    Float? ploidy_global_psi_scale
     Float? ploidy_sample_psi_scale
+    Int? mem_gb_for_determine_germline_contig_ploidy
+    Int? cpu_for_determine_germline_contig_ploidy
+    Int? disk_for_determine_germline_contig_ploidy
+
+    ############################################################
+    #### optional arguments for GermlineCNVCallerCohortMode ####
+    ############################################################
     Float? gcnv_p_alt
+    Float? gcnv_p_active
     Float? gcnv_cnv_coherence_length
+    Float? gcnv_class_coherence_length
     Int? gcnv_max_copy_number
+    Int? mem_gb_for_germline_cnv_caller
+    Int? cpu_for_germline_cnv_caller
+    Int? disk_for_germline_cnv_caller
+
+    # optional arguments for germline CNV denoising model
+    Int? gcnv_max_bias_factors
     Float? gcnv_mapping_error_rate
+    Float? gcnv_interval_psi_scale
     Float? gcnv_sample_psi_scale
     Float? gcnv_depth_correction_tau
+    Float? gcnv_log_mean_bias_standard_deviation
+    Float? gcnv_init_ard_rel_unexplained_variance
+    Int? gcnv_num_gc_bins
+    Float? gcnv_gc_curve_standard_deviation
     String? gcnv_copy_number_posterior_expectation_mode
+    Boolean? gcnv_enable_bias_factors
     Int? gcnv_active_class_padding_hybrid_mode
-    Array[String]? allosomal_contigs
+
+    # optional arguments for Hybrid ADVI
+    Float? gcnv_learning_rate
+    Float? gcnv_adamax_beta_1
+    Float? gcnv_adamax_beta_2
+    Int? gcnv_log_emission_samples_per_round
+    Float? gcnv_log_emission_sampling_median_rel_error
+    Int? gcnv_log_emission_sampling_rounds
+    Int? gcnv_max_advi_iter_first_epoch
+    Int? gcnv_max_advi_iter_subsequent_epochs
+    Int? gcnv_min_training_epochs
+    Int? gcnv_max_training_epochs
+    Float? gcnv_initial_temperature
+    Int? gcnv_num_thermal_advi_iters
+    Int? gcnv_convergence_snr_averaging_window
+    Float? gcnv_convergence_snr_trigger_threshold
+    Int? gcnv_convergence_snr_countdown_window
+    Int? gcnv_max_calling_iters
+    Float? gcnv_caller_update_convergence_threshold
+    Float? gcnv_caller_internal_admixing_rate
+    Float? gcnv_caller_external_admixing_rate
+    Boolean? gcnv_disable_annealing
 
     call ClusterSamplesFromCoverageWorkflow.ClusterSamplesFromCoverageWorkflow {
         input:
@@ -68,16 +150,184 @@ workflow CNVGermlineClusterAndCallFromCoverageWorkflow {
     }
 
     #process globs
+    Array[File] training_entity_ids_per_cluster_ = DetermineCohortsAndCases.training_entity_ids_per_cluster
+    Array[File] training_read_count_paths_per_cluster_ = DetermineCohortsAndCases.training_read_count_paths_per_cluster
+    Array[File] case_entity_ids_per_cluster_ = DetermineCohortsAndCases.case_entity_ids_per_cluster
+    Array[File] case_read_count_paths_per_cluster_ = DetermineCohortsAndCases.case_read_count_paths_per_cluster
+    Int num_clusters = length(training_entity_ids_per_cluster_)
 
     #call cohort mode
+    scatter (cluster_index in range(num_clusters)) {
+        call CNVGermlineCohortFromCoverageWorkflow.CNVGermlineCohortFromCoverageWorkflow as CohortTraining {
+            input:
+                intervals = intervals,
+                blacklist_intervals = blacklist_intervals,
+                entity_ids = training_entity_ids_per_cluster_[cluster_index],
+                read_count_files = training_read_count_paths_per_cluster_[cluster_index],
+                cohort_entity_id = basename(training_entity_ids_per_cluster_[cluster_index], "-training-entity_ids.txt"),
+                contig_ploidy_priors = contig_ploidy_priors,
+                num_intervals_per_scatter = num_intervals_per_scatter,
+                ref_fasta_dict = ref_fasta_dict,
+                ref_fasta_fai = ref_fasta_fai,
+                ref_fasta = ref_fasta,
+                gatk_docker = gatk_docker,
+                do_explicit_gc_correction = do_explicit_gc_correction,
+                gatk4_jar_override = gatk4_jar_override,
+                preemptible_attempts = preemptible_attempts,
+                padding = padding,
+                bin_length = bin_length,
+                mappability_track_bed = mappability_track_bed,
+                mappability_track_bed_idx = mappability_track_bed_idx,
+                segmental_duplication_track_bed = segmental_duplication_track_bed,
+                segmental_duplication_track_bed_idx = segmental_duplication_track_bed_idx,
+                feature_query_lookahead = feature_query_lookahead,
+                mem_gb_for_annotate_intervals = mem_gb_for_annotate_intervals,
+                blacklist_intervals_for_filter_intervals = blacklist_intervals_for_filter_intervals,
+                minimum_gc_content = minimum_gc_content,
+                maximum_gc_content = maximum_gc_content,
+                minimum_mappability = minimum_mappability,
+                maximum_mappability = maximum_mappability,
+                minimum_segmental_duplication_content = minimum_segmental_duplication_content,
+                maximum_segmental_duplication_content = maximum_segmental_duplication_content,
+                low_count_filter_count_threshold = low_count_filter_count_threshold,
+                low_count_filter_percentage_of_samples = low_count_filter_percentage_of_samples,
+                extreme_count_filter_minimum_percentile = extreme_count_filter_minimum_percentile,
+                extreme_count_filter_maximum_percentile = extreme_count_filter_maximum_percentile,
+                extreme_count_filter_percentage_of_samples = extreme_count_filter_percentage_of_samples,
+                mem_gb_for_filter_intervals = mem_gb_for_filter_intervals,
+                ploidy_mean_bias_standard_deviation = ploidy_mean_bias_standard_deviation,
+                ploidy_mapping_error_rate = ploidy_mapping_error_rate,
+                ploidy_global_psi_scale = ploidy_global_psi_scale,
+                ploidy_sample_psi_scale = ploidy_sample_psi_scale,
+                mem_gb_for_determine_germline_contig_ploidy = mem_gb_for_determine_germline_contig_ploidy,
+                cpu_for_determine_germline_contig_ploidy = cpu_for_determine_germline_contig_ploidy,
+                disk_for_determine_germline_contig_ploidy = disk_for_determine_germline_contig_ploidy,
+                gcnv_p_alt = gcnv_p_alt,
+                gcnv_p_active = gcnv_p_active,
+                gcnv_cnv_coherence_length = gcnv_cnv_coherence_length,
+                gcnv_class_coherence_length = gcnv_class_coherence_length,
+                gcnv_max_copy_number = gcnv_max_copy_number,
+                mem_gb_for_germline_cnv_caller = mem_gb_for_germline_cnv_caller,
+                cpu_for_germline_cnv_caller = cpu_for_germline_cnv_caller,
+                disk_for_germline_cnv_caller = disk_for_germline_cnv_caller,
+                gcnv_max_bias_factors = gcnv_max_bias_factors,
+                gcnv_mapping_error_rate = gcnv_mapping_error_rate,
+                gcnv_interval_psi_scale = gcnv_interval_psi_scale,
+                gcnv_sample_psi_scale = gcnv_sample_psi_scale,
+                gcnv_depth_correction_tau = gcnv_depth_correction_tau,
+                gcnv_log_mean_bias_standard_deviation = gcnv_log_mean_bias_standard_deviation,
+                gcnv_init_ard_rel_unexplained_variance = gcnv_init_ard_rel_unexplained_variance,
+                gcnv_num_gc_bins = gcnv_num_gc_bins,
+                gcnv_gc_curve_standard_deviation = gcnv_gc_curve_standard_deviation,
+                gcnv_copy_number_posterior_expectation_mode = gcnv_copy_number_posterior_expectation_mode,
+                gcnv_enable_bias_factors = gcnv_enable_bias_factors,
+                gcnv_active_class_padding_hybrid_mode = gcnv_active_class_padding_hybrid_mode,
+                gcnv_learning_rate = gcnv_learning_rate,
+                gcnv_adamax_beta_1 = gcnv_adamax_beta_1,
+                gcnv_adamax_beta_2 = gcnv_adamax_beta_2,
+                gcnv_log_emission_samples_per_round = gcnv_log_emission_samples_per_round,
+                gcnv_log_emission_sampling_median_rel_error = gcnv_log_emission_sampling_median_rel_error,
+                gcnv_log_emission_sampling_rounds = gcnv_log_emission_sampling_rounds,
+                gcnv_max_advi_iter_first_epoch = gcnv_max_advi_iter_first_epoch,
+                gcnv_max_advi_iter_subsequent_epochs = gcnv_max_advi_iter_subsequent_epochs,
+                gcnv_min_training_epochs = gcnv_min_training_epochs,
+                gcnv_max_training_epochs = gcnv_max_training_epochs,
+                gcnv_initial_temperature = gcnv_initial_temperature,
+                gcnv_num_thermal_advi_iters = gcnv_num_thermal_advi_iters,
+                gcnv_convergence_snr_averaging_window = gcnv_convergence_snr_averaging_window,
+                gcnv_convergence_snr_trigger_threshold = gcnv_convergence_snr_trigger_threshold,
+                gcnv_convergence_snr_countdown_window = gcnv_convergence_snr_countdown_window,
+                gcnv_max_calling_iters = gcnv_max_calling_iters,
+                gcnv_caller_update_convergence_threshold = gcnv_caller_update_convergence_threshold,
+                gcnv_caller_internal_admixing_rate = gcnv_caller_internal_admixing_rate,
+                gcnv_caller_external_admixing_rate = gcnv_caller_external_admixing_rate,
+                gcnv_disable_annealing = gcnv_disable_annealing
+        }
+    }
 
-    #call case mode
+    #call scattered-case mode
+    scatter (cluster_index in range(num_clusters)) {
+        call CNVGermlineCaseScatteredFromCoverageWorkflow.CNVGermlineCaseScatteredFromCoverageWorkflow as ScatteredCase {
+            input:
+                blacklist_intervals = blacklist_intervals,
+                filtered_intervals = CohortTraining.filtered_intervals[cluster_index],
+                entity_ids = case_entity_ids_per_cluster_[cluster_index],
+                read_count_files = case_read_count_paths_per_cluster_[cluster_index],
+                contig_ploidy_model_tar = CohortTraining.contig_ploidy_model_tar[cluster_index],
+                gcnv_model_tars = CohortTraining.gcnv_model_tars[cluster_index],
+                num_intervals_per_scatter = num_intervals_per_scatter,
+                ref_fasta_dict = ref_fasta_dict,
+                ref_fasta_fai = ref_fasta_fai,
+                ref_fasta = ref_fasta,
+                gatk_docker = gatk_docker,
+                num_samples_per_scatter_block = num_samples_per_scatter_block,
+                gatk4_jar_override = gatk4_jar_override,
+                preemptible_attempts = preemptible_attempts,
+                ploidy_mapping_error_rate = ploidy_mapping_error_rate,
+                ploidy_sample_psi_scale = ploidy_sample_psi_scale,
+                mem_gb_for_determine_germline_contig_ploidy = mem_gb_for_determine_germline_contig_ploidy,
+                cpu_for_determine_germline_contig_ploidy = cpu_for_determine_germline_contig_ploidy,
+                disk_for_determine_germline_contig_ploidy = disk_for_determine_germline_contig_ploidy,
+                gcnv_p_alt = gcnv_p_alt,
+                gcnv_cnv_coherence_length = gcnv_cnv_coherence_length,
+                gcnv_max_copy_number = gcnv_max_copy_number,
+                mem_gb_for_germline_cnv_caller = mem_gb_for_germline_cnv_caller,
+                cpu_for_germline_cnv_caller = cpu_for_germline_cnv_caller,
+                disk_for_germline_cnv_caller = disk_for_germline_cnv_caller,
+                gcnv_mapping_error_rate = gcnv_mapping_error_rate,
+                gcnv_sample_psi_scale = gcnv_sample_psi_scale,
+                gcnv_depth_correction_tau = gcnv_depth_correction_tau,
+                gcnv_copy_number_posterior_expectation_mode = gcnv_copy_number_posterior_expectation_mode,
+                gcnv_active_class_padding_hybrid_mode = gcnv_active_class_padding_hybrid_mode,
+                gcnv_learning_rate = gcnv_learning_rate,
+                gcnv_adamax_beta_1 = gcnv_adamax_beta_1,
+                gcnv_adamax_beta_2 = gcnv_adamax_beta_2,
+                gcnv_log_emission_samples_per_round = gcnv_log_emission_samples_per_round,
+                gcnv_log_emission_sampling_median_rel_error = gcnv_log_emission_sampling_median_rel_error,
+                gcnv_log_emission_sampling_rounds = gcnv_log_emission_sampling_rounds,
+                gcnv_max_advi_iter_first_epoch = gcnv_max_advi_iter_first_epoch,
+                gcnv_max_advi_iter_subsequent_epochs = gcnv_max_advi_iter_subsequent_epochs,
+                gcnv_min_training_epochs = gcnv_min_training_epochs,
+                gcnv_max_training_epochs = gcnv_max_training_epochs,
+                gcnv_initial_temperature = gcnv_initial_temperature,
+                gcnv_num_thermal_advi_iters = gcnv_num_thermal_advi_iters,
+                gcnv_convergence_snr_averaging_window = gcnv_convergence_snr_averaging_window,
+                gcnv_convergence_snr_trigger_threshold = gcnv_convergence_snr_trigger_threshold,
+                gcnv_convergence_snr_countdown_window = gcnv_convergence_snr_countdown_window,
+                gcnv_max_calling_iters = gcnv_max_calling_iters,
+                gcnv_caller_update_convergence_threshold = gcnv_caller_update_convergence_threshold,
+                gcnv_caller_internal_admixing_rate = gcnv_caller_internal_admixing_rate,
+                gcnv_caller_external_admixing_rate = gcnv_caller_external_admixing_rate,
+                gcnv_disable_annealing = gcnv_disable_annealing
+        }
+    }
 
     output {
         File clustering_table = ClusterSamplesFromCoverageWorkflow.clustering_table
         File sample_clusters_plot = ClusterSamplesFromCoverageWorkflow.sample_clusters_plot
 
+        Array[File] training_entity_ids_per_cluster = training_entity_ids_per_cluster_
+        Array[File] training_read_count_paths_per_cluster = training_read_count_paths_per_cluster_
+        Array[File] case_entity_ids_per_cluster = case_entity_ids_per_cluster_
+        Array[File] case_read_count_paths_per_cluster = case_read_count_paths_per_cluster_
         File summary_table = DetermineCohortsAndCases.summary_table
+
+        File preprocessed_intervals = CohortTraining.preprocessed_intervals[0]
+        File? annotated_intervals = CohortTraining.annotated_intervals[0]
+        Array[File] training_filtered_intervals_per_cluster = CohortTraining.filtered_intervals
+        Array[File] training_contig_ploidy_model_tar_per_cluster = CohortTraining.contig_ploidy_model_tar
+        Array[File] training_contig_ploidy_calls_tar_per_cluster = CohortTraining.contig_ploidy_calls_tar
+        Array[Array[File]] training_gcnv_model_tars_per_cluster = CohortTraining.gcnv_model_tars
+        Array[Array[Array[File]]] training_gcnv_calls_tars_per_cluster = CohortTraining.gcnv_calls_tars
+        Array[Array[File]] training_gcnv_tracking_tars_per_cluster = CohortTraining.gcnv_tracking_tars
+        Array[Array[File]] training_genotyped_intervals_vcfs_per_cluster = CohortTraining.genotyped_intervals_vcfs
+        Array[Array[File]] training_genotyped_segments_vcfs_per_cluster = CohortTraining.genotyped_segments_vcfs
+
+        Array[Array[File]] scattered_case_contig_ploidy_calls_tars_per_cluster = ScatteredCase.contig_ploidy_calls_tars
+        Array[Array[Array[Array[File]]]] scattered_case_gcnv_calls_tars_per_cluster = ScatteredCase.gcnv_calls_tars
+        Array[Array[Array[File]]] scattered_case_gcnv_tracking_tars_per_cluster = ScatteredCase.gcnv_tracking_tars
+        Array[Array[Array[File]]] scattered_case_genotyped_intervals_vcfs_per_cluster = ScatteredCase.genotyped_intervals_vcfs
+        Array[Array[Array[File]]] scattered_case_genotyped_segments_vcfs_per_cluster = ScatteredCase.genotyped_segments_vcfs
     }
 }
 
