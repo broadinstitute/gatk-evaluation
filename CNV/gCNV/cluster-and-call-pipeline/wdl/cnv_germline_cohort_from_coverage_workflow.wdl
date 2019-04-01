@@ -15,6 +15,7 @@ workflow CNVGermlineCohortFromCoverageWorkflow {
     File ref_fasta_dict
     File ref_fasta_fai
     File ref_fasta
+    Int ref_copy_number_autosomal_contigs
     String gatk_docker
 
     ##################################
@@ -118,10 +119,9 @@ workflow CNVGermlineCohortFromCoverageWorkflow {
     Float? gcnv_caller_external_admixing_rate
     Boolean? gcnv_disable_annealing
 
-    ###################################################
-    #### arguments for PostprocessGermlineCNVCalls ####
-    ###################################################
-    Int ref_copy_number_autosomal_contigs
+    ############################################################
+    #### optional arguments for PostprocessGermlineCNVCalls ####
+    ############################################################
     Array[String]? allosomal_contigs
 
     call CNVTasks.PreprocessIntervals {

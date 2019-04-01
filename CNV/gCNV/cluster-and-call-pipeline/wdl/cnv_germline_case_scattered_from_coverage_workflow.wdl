@@ -15,8 +15,9 @@ workflow CNVGermlineCaseScatteredFromCoverageWorkflow {
     File ref_fasta_dict
     File ref_fasta_fai
     File ref_fasta
-    String gatk_docker
+    Int ref_copy_number_autosomal_contigs
     Int num_samples_per_scatter_block
+    String gatk_docker
 
     ##################################
     #### optional basic arguments ####
@@ -72,10 +73,9 @@ workflow CNVGermlineCaseScatteredFromCoverageWorkflow {
     Float? gcnv_caller_external_admixing_rate
     Boolean? gcnv_disable_annealing
 
-    ###################################################
-    #### arguments for PostprocessGermlineCNVCalls ####
-    ###################################################
-    Int ref_copy_number_autosomal_contigs
+    ############################################################
+    #### optional arguments for PostprocessGermlineCNVCalls ####
+    ############################################################
     Array[String]? allosomal_contigs
 
     call SplitInputArray as SplitInputEntityIDsList {

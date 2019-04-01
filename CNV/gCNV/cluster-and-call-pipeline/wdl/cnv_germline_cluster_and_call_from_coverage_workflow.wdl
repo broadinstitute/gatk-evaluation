@@ -70,9 +70,9 @@ workflow CNVGermlineClusterAndCallFromCoverageWorkflow {
     Float? extreme_count_filter_percentage_of_samples
     Int? mem_gb_for_filter_intervals
 
-    ########################################################################
-    #### optional arguments for DetermineGermlineContigPloidyCohortMode ####
-    ########################################################################
+    ##############################################################
+    #### optional arguments for DetermineGermlineContigPloidy ####
+    ##############################################################
     Float? ploidy_mean_bias_standard_deviation
     Float? ploidy_mapping_error_rate
     Float? ploidy_global_psi_scale
@@ -81,9 +81,9 @@ workflow CNVGermlineClusterAndCallFromCoverageWorkflow {
     Int? cpu_for_determine_germline_contig_ploidy
     Int? disk_for_determine_germline_contig_ploidy
 
-    ############################################################
-    #### optional arguments for GermlineCNVCallerCohortMode ####
-    ############################################################
+    ##################################################
+    #### optional arguments for GermlineCNVCaller ####
+    ##################################################
     Float? gcnv_p_alt
     Float? gcnv_p_active
     Float? gcnv_cnv_coherence_length
@@ -129,6 +129,11 @@ workflow CNVGermlineClusterAndCallFromCoverageWorkflow {
     Float? gcnv_caller_external_admixing_rate
     Boolean? gcnv_disable_annealing
 
+    ############################################################
+    #### optional arguments for PostprocessGermlineCNVCalls ####
+    ############################################################
+    Array[String]? allosomal_contigs
+
     call ClusterSamplesFromCoverageWorkflow.ClusterSamplesFromCoverageWorkflow {
         input:
             entity_ids = entity_ids,
@@ -162,8 +167,8 @@ workflow CNVGermlineClusterAndCallFromCoverageWorkflow {
             input:
                 intervals = intervals,
                 blacklist_intervals = blacklist_intervals,
-                entity_ids = training_entity_ids_per_cluster_[cluster_index],
-                read_count_files = training_read_count_paths_per_cluster_[cluster_index],
+                entity_ids = read_lines(training_entity_ids_per_cluster_[cluster_index]),
+                read_count_files = read_lines(training_read_count_paths_per_cluster_[cluster_index]),
                 cohort_entity_id = basename(training_entity_ids_per_cluster_[cluster_index], "-training-entity_ids.txt"),
                 contig_ploidy_priors = contig_ploidy_priors,
                 num_intervals_per_scatter = num_intervals_per_scatter,
@@ -241,7 +246,9 @@ workflow CNVGermlineClusterAndCallFromCoverageWorkflow {
                 gcnv_caller_update_convergence_threshold = gcnv_caller_update_convergence_threshold,
                 gcnv_caller_internal_admixing_rate = gcnv_caller_internal_admixing_rate,
                 gcnv_caller_external_admixing_rate = gcnv_caller_external_admixing_rate,
-                gcnv_disable_annealing = gcnv_disable_annealing
+                gcnv_disable_annealing = gcnv_disable_annealing,
+                ref_copy_number_autosomal_contigs = ref_copy_number_autosomal_contigs,
+                allosomal_contigs = allosomal_contigs
         }
     }
 
@@ -251,8 +258,8 @@ workflow CNVGermlineClusterAndCallFromCoverageWorkflow {
             input:
                 blacklist_intervals = blacklist_intervals,
                 filtered_intervals = CohortTraining.filtered_intervals[cluster_index],
-                entity_ids = case_entity_ids_per_cluster_[cluster_index],
-                read_count_files = case_read_count_paths_per_cluster_[cluster_index],
+                entity_ids = read_lines(case_entity_ids_per_cluster_[cluster_index]),
+                read_count_files = read_lines(case_read_count_paths_per_cluster_[cluster_index]),
                 contig_ploidy_model_tar = CohortTraining.contig_ploidy_model_tar[cluster_index],
                 gcnv_model_tars = CohortTraining.gcnv_model_tars[cluster_index],
                 num_intervals_per_scatter = num_intervals_per_scatter,
@@ -298,7 +305,9 @@ workflow CNVGermlineClusterAndCallFromCoverageWorkflow {
                 gcnv_caller_update_convergence_threshold = gcnv_caller_update_convergence_threshold,
                 gcnv_caller_internal_admixing_rate = gcnv_caller_internal_admixing_rate,
                 gcnv_caller_external_admixing_rate = gcnv_caller_external_admixing_rate,
-                gcnv_disable_annealing = gcnv_disable_annealing
+                gcnv_disable_annealing = gcnv_disable_annealing,
+                ref_copy_number_autosomal_contigs = ref_copy_number_autosomal_contigs,
+                allosomal_contigs = allosomal_contigs
         }
     }
 
