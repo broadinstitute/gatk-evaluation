@@ -11,7 +11,7 @@ workflow CNVGermlineClusterAndCallFromCoverageWorkflow {
     Array[String]+ read_count_paths
     Array[String]+ read_count_paths_for_clustering
     Int maximum_number_of_clusters
-    File training_blacklist
+    Array[String] training_blacklist_entity_ids
     Int number_of_training_samples_per_model
     File intervals
     File contig_ploidy_priors
@@ -148,7 +148,7 @@ workflow CNVGermlineClusterAndCallFromCoverageWorkflow {
             entity_ids = entity_ids,
             read_count_paths = read_count_paths,
             clustering_table = ClusterSamplesFromCoverageWorkflow.clustering_table,
-            training_blacklist = training_blacklist,
+            training_blacklist_entity_ids = training_blacklist_entity_ids,
             number_of_training_samples_per_model = number_of_training_samples_per_model,
             gatk_docker = gatk_docker,
             preemptible_attempts = preemptible_attempts
@@ -344,7 +344,7 @@ task DetermineCohortsAndCases {
     Array[String]+ entity_ids
     Array[String]+ read_count_paths
     File clustering_table
-    File training_blacklist
+    Array[String] training_blacklist_entity_ids
     Int number_of_training_samples_per_model
 
     # Runtime parameters
@@ -364,7 +364,7 @@ task DetermineCohortsAndCases {
                  --entity_ids_file ${write_lines(entity_ids)} \
                  --read_count_paths_file ${write_lines(read_count_paths)} \
                  --clustering_table_file ${clustering_table} \
-                 --training_blacklist_file ${training_blacklist} \
+                 --training_blacklist_file ${write_lines(training_blacklist_entity_ids)} \
                  --number_of_training_samples_per_model ${number_of_training_samples_per_model} \
                  <<-'EOF'
         import argparse
