@@ -1,17 +1,17 @@
 {
   "CNVGermlineClusterAndCallFromCoverageWorkflow.allosomal_contigs": ["X", "Y"],
   "CNVGermlineClusterAndCallFromCoverageWorkflow.do_explicit_gc_correction": true,
-  "CNVGermlineClusterAndCallFromCoverageWorkflow.maximum_number_of_clusters": "3",
-  "CNVGermlineClusterAndCallFromCoverageWorkflow.number_of_training_samples_per_model": "20",
-  "CNVGermlineClusterAndCallFromCoverageWorkflow.num_intervals_per_scatter": "3000",
-  "CNVGermlineClusterAndCallFromCoverageWorkflow.num_samples_per_scatter_block": "4",
-  "CNVGermlineClusterAndCallFromCoverageWorkflow.ref_copy_number_autosomal_contigs": "2",
-  "CNVGermlineClusterAndCallFromCoverageWorkflow.gcnv_log_emission_samples_per_round": "1",
-  "CNVGermlineClusterAndCallFromCoverageWorkflow.gcnv_log_emission_sampling_rounds": "1",
-  "CNVGermlineClusterAndCallFromCoverageWorkflow.gcnv_max_advi_iter_first_epoch": "20",
-  "CNVGermlineClusterAndCallFromCoverageWorkflow.gcnv_max_advi_iter_subsequent_epochs": "20",
+  "CNVGermlineClusterAndCallFromCoverageWorkflow.maximum_number_of_clusters": 3,
+  "CNVGermlineClusterAndCallFromCoverageWorkflow.number_of_training_samples_per_model": 20,
+  "CNVGermlineClusterAndCallFromCoverageWorkflow.num_intervals_per_scatter": 3000,
+  "CNVGermlineClusterAndCallFromCoverageWorkflow.num_samples_per_scatter_block": 4,
+  "CNVGermlineClusterAndCallFromCoverageWorkflow.ref_copy_number_autosomal_contigs": 2,
+  "CNVGermlineClusterAndCallFromCoverageWorkflow.gcnv_log_emission_samples_per_round": 1,
+  "CNVGermlineClusterAndCallFromCoverageWorkflow.gcnv_log_emission_sampling_rounds": 1,
+  "CNVGermlineClusterAndCallFromCoverageWorkflow.gcnv_max_advi_iter_first_epoch": 20,
+  "CNVGermlineClusterAndCallFromCoverageWorkflow.gcnv_max_advi_iter_subsequent_epochs": 20,
   "CNVGermlineClusterAndCallFromCoverageWorkflow.gcnv_min_training_epochs": 1,
   "CNVGermlineClusterAndCallFromCoverageWorkflow.gcnv_max_training_epochs": 1,
-  "CNVGermlineClusterAndCallFromCoverageWorkflow.gcnv_num_thermal_advi_iters": "10",
-  "CNVGermlineClusterAndCallFromCoverageWorkflow.gcnv_max_calling_iters": "1"
+  "CNVGermlineClusterAndCallFromCoverageWorkflow.gcnv_num_thermal_advi_iters": 10,
+  "CNVGermlineClusterAndCallFromCoverageWorkflow.gcnv_max_calling_iters": 1
 }

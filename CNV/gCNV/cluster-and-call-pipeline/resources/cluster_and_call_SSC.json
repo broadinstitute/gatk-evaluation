@@ -54,10 +54,10 @@
     "SSC05976"],
   "CNVGermlineClusterAndCallFromCoverageWorkflow.gatk_docker": "broadinstitute/gatk:4.1.1.0",
   "CNVGermlineClusterAndCallFromCoverageWorkflow.intervals": "resources/intervals.interval_list",
-  "CNVGermlineClusterAndCallFromCoverageWorkflow.maximum_number_of_clusters": "3",
-  "CNVGermlineClusterAndCallFromCoverageWorkflow.number_of_training_samples_per_model": "20",
-  "CNVGermlineClusterAndCallFromCoverageWorkflow.num_intervals_per_scatter": "3000",
-  "CNVGermlineClusterAndCallFromCoverageWorkflow.num_samples_per_scatter_block": "4",
+  "CNVGermlineClusterAndCallFromCoverageWorkflow.maximum_number_of_clusters": 3,
+  "CNVGermlineClusterAndCallFromCoverageWorkflow.number_of_training_samples_per_model": 20,
+  "CNVGermlineClusterAndCallFromCoverageWorkflow.num_intervals_per_scatter": 3000,
+  "CNVGermlineClusterAndCallFromCoverageWorkflow.num_samples_per_scatter_block": 4,
   "CNVGermlineClusterAndCallFromCoverageWorkflow.read_count_paths": [
     "resources/counts/SSC00848.counts.tsv",
     "resources/counts/SSC00853.counts.tsv",
@@ -162,7 +162,7 @@
     "resources/clustering-counts/SSC05973.counts.tsv",
     "resources/clustering-counts/SSC05976.counts.tsv"
   ],
-  "CNVGermlineClusterAndCallFromCoverageWorkflow.ref_copy_number_autosomal_contigs": "2",
+  "CNVGermlineClusterAndCallFromCoverageWorkflow.ref_copy_number_autosomal_contigs": 2,
   "CNVGermlineClusterAndCallFromCoverageWorkflow.ref_fasta_dict": "/home/BROAD.MIT.EDU/slee/data/hg19/Homo_sapiens_assembly19.dict",
   "CNVGermlineClusterAndCallFromCoverageWorkflow.ref_fasta_fai": "/home/BROAD.MIT.EDU/slee/data/hg19/Homo_sapiens_assembly19.fasta.fai",
   "CNVGermlineClusterAndCallFromCoverageWorkflow.ref_fasta": "/home/BROAD.MIT.EDU/slee/data/hg19/Homo_sapiens_assembly19.fasta",
@@ -171,12 +171,12 @@
     "SSC00853",
     "SSC00854"],
   "CNVGermlineClusterAndCallFromCoverageWorkflow.contig_ploidy_priors": "resources/hg19.contig_ploidy_priors.tsv",
-  "CNVGermlineClusterAndCallFromCoverageWorkflow.gcnv_log_emission_samples_per_round": "1",
-  "CNVGermlineClusterAndCallFromCoverageWorkflow.gcnv_log_emission_sampling_rounds": "1",
-  "CNVGermlineClusterAndCallFromCoverageWorkflow.gcnv_max_advi_iter_first_epoch": "20",
-  "CNVGermlineClusterAndCallFromCoverageWorkflow.gcnv_max_advi_iter_subsequent_epochs": "20",
+  "CNVGermlineClusterAndCallFromCoverageWorkflow.gcnv_log_emission_samples_per_round": 1,
+  "CNVGermlineClusterAndCallFromCoverageWorkflow.gcnv_log_emission_sampling_rounds": 1,
+  "CNVGermlineClusterAndCallFromCoverageWorkflow.gcnv_max_advi_iter_first_epoch": 20,
+  "CNVGermlineClusterAndCallFromCoverageWorkflow.gcnv_max_advi_iter_subsequent_epochs": 20,
   "CNVGermlineClusterAndCallFromCoverageWorkflow.gcnv_min_training_epochs": 1,
   "CNVGermlineClusterAndCallFromCoverageWorkflow.gcnv_max_training_epochs": 1,
-  "CNVGermlineClusterAndCallFromCoverageWorkflow.gcnv_num_thermal_advi_iters": "10",
-  "CNVGermlineClusterAndCallFromCoverageWorkflow.gcnv_max_calling_iters": "1"
+  "CNVGermlineClusterAndCallFromCoverageWorkflow.gcnv_num_thermal_advi_iters": 10,
+  "CNVGermlineClusterAndCallFromCoverageWorkflow.gcnv_max_calling_iters": 1
 }
