@@ -23,6 +23,12 @@ workflow CNVGermlineClusterAndCallFromCoverageWorkflow {
     Int ref_copy_number_autosomal_contigs
     String gatk_docker
 
+    ############################
+    #### optional arguments ####
+    ############################
+    File? clustering_prior_table        # currently not used
+    Int? mem_gb_for_cluster_samples
+
     #############################################################
     #### shared optional arguments for CNVGermline workflows ####
     #############################################################
@@ -139,7 +145,9 @@ workflow CNVGermlineClusterAndCallFromCoverageWorkflow {
             entity_ids = entity_ids,
             read_count_files = read_count_paths_for_clustering,
             maximum_number_of_clusters = maximum_number_of_clusters,
+            clustering_prior_table = clustering_prior_table,
             gatk_docker = gatk_docker,
+            mem_gb_for_cluster_samples = mem_gb_for_cluster_samples,
             preemptible_attempts = preemptible_attempts
     }
 

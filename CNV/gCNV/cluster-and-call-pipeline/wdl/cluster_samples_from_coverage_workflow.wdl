@@ -11,14 +11,18 @@ workflow ClusterSamplesFromCoverageWorkflow {
     ##################################
     #### optional basic arguments ####
     ##################################
+    File? clustering_prior_table        # currently not used
     Int? preemptible_attempts
+    Int? mem_gb_for_cluster_samples
 
     call ClusterSamples {
         input:
             entity_ids = entity_ids,
             read_count_files = read_count_files,
             maximum_number_of_clusters = maximum_number_of_clusters,
+            clustering_prior_table = clustering_prior_table,
             gatk_docker = gatk_docker,
+            mem_gb = mem_gb_for_cluster_samples,
             preemptible_attempts = preemptible_attempts
     }
 
