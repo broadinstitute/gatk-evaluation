@@ -25,7 +25,7 @@ workflow MultiCNVValidation {
 
     String eval_docker
 
-    File? blacklist_intervals
+    File? wgs_blacklist_intervals
 
     ### Validation parameters
     Float? num_changepoints_penalty_factor_normal
@@ -135,7 +135,7 @@ workflow MultiCNVValidation {
                 gistic_blacklist_tracks_seg = gistic_blacklist_tracks_seg,
                 germline_tagging_padding = germline_tagging_padding,
                 max_merge_distance = max_merge_distance,
-                blacklist_intervals = blacklist_intervals
+                blacklist_intervals = wgs_blacklist_intervals
         }
     }
 
@@ -177,8 +177,7 @@ workflow MultiCNVValidation {
                 centromere_tracks_seg = centromere_tracks_seg,
                 gistic_blacklist_tracks_seg = gistic_blacklist_tracks_seg,
                 germline_tagging_padding = germline_tagging_padding,
-                max_merge_distance = max_merge_distance,
-                blacklist_intervals = blacklist_intervals
+                max_merge_distance = max_merge_distance
         }
     }
 
@@ -216,8 +215,7 @@ workflow MultiCNVValidation {
                 gistic_blacklist_tracks_seg = gistic_blacklist_tracks_seg,
                 germline_tagging_padding = germline_tagging_padding,
                 max_merge_distance = max_merge_distance,
-                dummy_matched_normal = CreateDummyMatchedNormal.dummy_matched_normal,
-                blacklist_intervals = blacklist_intervals
+                dummy_matched_normal = CreateDummyMatchedNormal.dummy_matched_normal
         }
 
         call ClinicalSensitivityPrep {

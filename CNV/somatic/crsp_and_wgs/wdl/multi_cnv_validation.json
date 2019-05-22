@@ -1,5 +1,4 @@
 {
- "MultiCNVValidation.blacklist_intervals": "gs://gatk-best-practices/somatic-b37/CNV_and_centromere_blacklist.hg19.list",
  "MultiCNVValidation.calling_copy_ratio_z_score_threshold": 3.05,
  "MultiCNVValidation.centromere_tracks_seg":"gs://gatk-best-practices/somatic-b37/final_centromere_hg19.seg",
  "MultiCNVValidation.clinical_seg_gts": [
@@ -25,14 +24,13 @@
 ],
  "MultiCNVValidation.common_sites": "gs://broad-dsde-methods-th/allchr.1kg.phase3.v5a.snp.maf10.biallelic.recode.fixed.prune5.interval_list",
  "MultiCNVValidation.eval_docker": "us.gcr.io/broad-dsde-methods/gatk-evaluation/cnv_somatic_1p5:crsp_and_wgs_1.2beta",
- "MultiCNVValidation.gatk_docker": "us.gcr.io/broad-gatk/gatk:4.0.11.0",
+ "MultiCNVValidation.gatk_docker": "us.gcr.io/broad-gatk/gatk:4.1.0.0",
  "MultiCNVValidation.gistic_blacklist_tracks_seg":"gs://gatk-best-practices/somatic-b37/CNV.hg19.bypos.v1.CR1_event_added.mod.seg",
- "MultiCNVValidation.group_id": "Evaluation_CNV_1.5",
+ "MultiCNVValidation.group_id": "Evaluation_ModelSegments",
  "MultiCNVValidation.ice_intervals": "gs://broad-dsde-methods-th/target/ice_targets.tsv.interval_list",
- "MultiCNVValidation.ice_read_count_pon": "gs://broad-dsde-methods-lichtens/cromwell-executions-test-dl-oxoq-full/CNVSomaticPanelWorkflow/ab1675e3-f946-49e7-91ac-2d495caff1ec/call-CreateReadCountPanelOfNormals/PoN_ICE_GATK4.0_300samples_blacklist.pon.hdf5",
+ "MultiCNVValidation.ice_read_count_pon": "gs://broad-dsde-methods-lichtens/cromwell-executions-test-dl-oxoq-full/CNVSomaticPanelWorkflow/85264ec6-88ae-4be7-99c0-0e9aacf98d49/call-CreateReadCountPanelOfNormals/PoN_ICE_GATK4.0_300samples.pon.hdf5",
  "MultiCNVValidation.is_bp_validation": true,
  "MultiCNVValidation.is_purity_validation": true,
- "MultiCNVValidation.max_merge_distance": 10000,
  "MultiCNVValidation.purity_gt_seg_files": [
   "gs://broad-dsde-methods-lichtens/evaltest/HCC1143.curated.genes.cn.updated_headers.merged.txt",
   "gs://broad-dsde-methods-lichtens/evaltest/HCC1143.curated.genes.cn.updated_headers.merged.txt",
@@ -107,6 +105,7 @@
  "MultiCNVValidation.ref_fasta_dict": "gs://broad-dsde-methods-th/refs/Homo_sapiens_assembly19.dict",
  "MultiCNVValidation.ref_fasta_fai": "gs://broad-dsde-methods-th/refs/Homo_sapiens_assembly19.fasta.fai",
  "MultiCNVValidation.wgs_bin_length": 250,
+ "MultiCNVValidation.wgs_blacklist_intervals": "gs://gatk-best-practices/somatic-b37/CNV_and_centromere_blacklist.hg19.list",
  "MultiCNVValidation.wgs_gt_seg_files": [
   "gs://broad-dsde-methods-lichtens/pcawg_input_files/consensus_seg_files/9d29543e-8601-4fd0-8e76-3df3de465cab.consensus.20170628.somatic.cna.annotated.txt",
   "gs://broad-dsde-methods-lichtens/pcawg_input_files/consensus_seg_files/d8f0becd-fda8-41f4-a424-e082f9eae22c.consensus.20170628.somatic.cna.annotated.txt",

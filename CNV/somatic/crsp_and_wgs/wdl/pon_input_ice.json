@@ -1,5 +1,6 @@
 {
   "CNVSomaticPanelWorkflow.blacklist_intervals": "gs://gatk-best-practices/somatic-b37/CNV_and_centromere_blacklist.hg19.list",
+  "CNVSomaticPanelWorkflow.do_explicit_gc_correction": "true",
   "CNVSomaticPanelWorkflow.normal_bams": [
     "gs://broad-dsde-methods-test-data/crsp-private-bams/ice_pon/07-01.bam",
     "gs://broad-dsde-methods-test-data/crsp-private-bams/ice_pon/07C64815.bam",
@@ -605,9 +606,9 @@
     "gs://broad-dsde-methods-test-data/crsp-private-bams/ice_pon/T18679.bai"
   ],
   "CNVSomaticPanelWorkflow.ref_fasta_dict": "gs://broad-dsde-methods-th/refs/Homo_sapiens_assembly19.dict",
-  "CNVSomaticPanelWorkflow.pon_entity_id": "PoN_ICE_GATK4.0_300samples_blacklist",
+  "CNVSomaticPanelWorkflow.pon_entity_id": "PoN_ICE_GATK4.1_300samples_blacklist_gc",
   "CNVSomaticPanelWorkflow.ref_fasta_fai": "gs://broad-dsde-methods-th/refs/Homo_sapiens_assembly19.fasta.fai",
-  "CNVSomaticPanelWorkflow.gatk_docker": "us.gcr.io/broad-gatk/gatk:4.0.11.0",
+  "CNVSomaticPanelWorkflow.gatk_docker": "us.gcr.io/broad-gatk/gatk:4.1.2.0",
   "CNVSomaticPanelWorkflow.ref_fasta": "gs://broad-dsde-methods-th/refs/Homo_sapiens_assembly19.fasta",
   "CNVSomaticPanelWorkflow.bin_length": "0",
   "CNVSomaticPanelWorkflow.CreateReadCountPanelOfNormals.mem": "48",
