@@ -375,3 +375,4 @@ task GermlineCNVCallerCaseMode {
         File sharded_interval_list = "${output_dir_}/case-calls/interval_list.tsv"
     }
 }
+

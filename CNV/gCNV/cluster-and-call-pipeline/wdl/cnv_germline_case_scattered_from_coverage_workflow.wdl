@@ -205,3 +205,4 @@ task SplitInputArray {
         Array[Array[String]] split_array = read_tsv("input_array_split.tsv")
     }
 }
+
