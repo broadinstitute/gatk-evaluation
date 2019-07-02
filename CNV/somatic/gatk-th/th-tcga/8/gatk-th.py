@@ -959,6 +959,7 @@ def run_th(modeled_segments_path, output_prefix, output_path, global_config, vec
     print('MAP subclonal_cancer_cell_fraction_s:', map_parameters.subclonal_cancer_cell_fraction_s)
     print('MAP purity:', map_parameters.purity)
     print('MAP cr_norm:', map_parameters.cr_norm)
+    print('MAP ploidy:', (map_parameters.cr_norm - 2 * (1 - map_parameters.purity)) / (map_parameters.purity + eps_model))
     
     # output MAP CN plot========================================================
     

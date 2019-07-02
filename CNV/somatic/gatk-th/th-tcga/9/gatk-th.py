@@ -820,11 +820,11 @@ discrete_prior_config = DiscretePriorConfig(
     num_alleles = 2,
     allelic_copy_number_states = np.arange(6 + 1),
     normal_allelic_copy_number_state = 1,
-    allelic_copy_number_change_prior_prob = 0.1,
+    allelic_copy_number_change_prior_prob = 0.99,
     hom_del_prior_prob = 1E-6,
     num_marginalization_product_states = 200,
     normal_population_event_length_scale = 1E4,
-    tumor_population_event_length_scale = 1E8)
+    tumor_population_event_length_scale = 1E7)
 
 global_discrete_prior = generate_label_ordered_product_states_and_log_prior(discrete_prior_config)
 
@@ -840,7 +840,7 @@ continuous_prior_config = ContinuousPriorConfig(
     subclonal_cancer_cell_fraction_alpha = 1E-2,
     purity_a = 1.,
     purity_b = 10.,
-    cr_norm_s = 0.05,
+    cr_norm_s = 0.1,
     cr_norm_scale = 2.,
     cr_norm_constraint_scale = np.sqrt(1E-3))
 
@@ -959,6 +959,7 @@ def run_th(modeled_segments_path, output_prefix, output_path, global_config, vec
     print('MAP subclonal_cancer_cell_fraction_s:', map_parameters.subclonal_cancer_cell_fraction_s)
     print('MAP purity:', map_parameters.purity)
     print('MAP cr_norm:', map_parameters.cr_norm)
+    print('MAP ploidy:', (map_parameters.cr_norm - 2 * (1 - map_parameters.purity)) / (map_parameters.purity + eps_model))
     
     # output MAP CN plot========================================================
     
