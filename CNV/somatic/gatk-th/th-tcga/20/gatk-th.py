@@ -194,19 +194,16 @@ def generate_label_ordered_product_states_and_log_prior(discrete_prior_config):
     
     unnorm_label_ordered_product_state_prior_li = np.ones((len(label_ordered_allelic_copy_number_product_states_lij), num_overlapping_populations))
     
-    # penalize non-normal states
-#    is_non_normal_l = np.any(label_ordered_allelic_copy_number_product_states_lij != normal_allelic_copy_number_state, axis=(1, 2)))
-#    unnorm_label_ordered_product_state_prior_li *= (1. - copy_number_event_prior_penalty)**is_non_normal_l[:, np.newaxis]
-    
     # penalize non-germline states
 #    is_non_germline_l = ~np.all((label_ordered_allelic_copy_number_product_states_lij[:, 0, :] == label_ordered_allelic_copy_number_product_states_lij[:, 1, :]) *
 #                                (label_ordered_allelic_copy_number_product_states_lij[:, 0, :] == label_ordered_allelic_copy_number_product_states_lij[:, 2, :]), axis=-1)
 #    unnorm_label_ordered_product_state_prior_li *= (1. - copy_number_event_prior_penalty)**is_non_germline_l[:, np.newaxis]
     
-    # penalize subclonal non-clonal states
+    # penalize subclonal non-normal/non-clonal states
 #    is_subclonal_li = (np.array([np.ones(len(label_ordered_allelic_copy_number_product_states_lij)),
 #                                 np.ones(len(label_ordered_allelic_copy_number_product_states_lij)),
-#                                 ~np.all(label_ordered_allelic_copy_number_product_states_lij[:, 1, :] == label_ordered_allelic_copy_number_product_states_lij[:, 2, :], axis=-1)])).transpose()
+#                                 np.any(label_ordered_allelic_copy_number_product_states_lij[:, 2, :] != normal_allelic_copy_number_state, axis=-1) *
+#                                    ~np.all(label_ordered_allelic_copy_number_product_states_lij[:, 1, :] == label_ordered_allelic_copy_number_product_states_lij[:, 2, :], axis=-1)])).transpose()
 #    unnorm_label_ordered_product_state_prior_li *= (1. - copy_number_event_prior_penalty)**is_subclonal_li
 
     # penalize copy-number changes from population to population
@@ -391,7 +388,7 @@ def logp(transformed_parameters_array, prior, data):
     likelihood_logp_ksl = calculate_likelihood_logp_ksl(parameters, data, use_marginalization_states=True)
     
     # marginalize over subclonal population assignments and marginalization product states
-    logp_ksl = (2 - parameters.purity) * prior.discrete_prior.marginalization_product_state_log_prior_kl[:, np.newaxis, :] + likelihood_logp_ksl
+    logp_ksl = prior.discrete_prior.marginalization_product_state_log_prior_kl[:, np.newaxis, :] + likelihood_logp_ksl
     logp += jnp.sum(jax.scipy.special.logsumexp(logp_ksl, axis=(-2, -1)))
     
     # L2 prior on equivalence between MAP ploidy and cr_norm
@@ -579,7 +576,7 @@ def logp_w(transformed_ensemble_wP, prior, data):
     likelihood_logp_wksl = calculate_likelihood_logp_wksl(ensemble_wp * is_allowed_w[:, np.newaxis], data, use_marginalization_states=True)
     
     # marginalize over subclonal population assignments and marginalization product states
-    logp_wksl = (2 - ensemble_wp[:, -2][:, np.newaxis, np.newaxis, np.newaxis]) * prior.discrete_prior.marginalization_product_state_log_prior_kl[np.newaxis, :, np.newaxis, :] + likelihood_logp_wksl
+    logp_wksl = prior.discrete_prior.marginalization_product_state_log_prior_kl[np.newaxis, :, np.newaxis, :] + likelihood_logp_wksl
     logp_w += jnp.sum(jax.scipy.special.logsumexp(logp_wksl, axis=(-2, -1)), axis=-1)
     
     # L2 prior on equivalence between MAP ploidy and cr_norm
@@ -855,7 +852,7 @@ discrete_prior_config = DiscretePriorConfig(
     num_alleles = 2,
     allelic_copy_number_states = np.arange(6 + 1),
     normal_allelic_copy_number_state = 1,
-    copy_number_event_prior_penalty = 0.0001,
+    copy_number_event_prior_penalty = 0.01,
     allelic_copy_number_change_prior_penalty = 0.01,
     hom_del_prior_penalty = 0.,
     num_marginalization_product_states = 200,
