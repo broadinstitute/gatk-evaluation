@@ -391,7 +391,7 @@ def logp(transformed_parameters_array, prior, data):
     likelihood_logp_ksl = calculate_likelihood_logp_ksl(parameters, data, use_marginalization_states=True)
     
     # marginalize over subclonal population assignments and marginalization product states
-    logp_ksl = (2 - parameters.purity) * prior.discrete_prior.marginalization_product_state_log_prior_kl[:, np.newaxis, :] + likelihood_logp_ksl
+    logp_ksl = prior.discrete_prior.marginalization_product_state_log_prior_kl[:, np.newaxis, :] + likelihood_logp_ksl
     logp += jnp.sum(jax.scipy.special.logsumexp(logp_ksl, axis=(-2, -1)))
     
     # L2 prior on equivalence between MAP ploidy and cr_norm
@@ -579,7 +579,7 @@ def logp_w(transformed_ensemble_wP, prior, data):
     likelihood_logp_wksl = calculate_likelihood_logp_wksl(ensemble_wp * is_allowed_w[:, np.newaxis], data, use_marginalization_states=True)
     
     # marginalize over subclonal population assignments and marginalization product states
-    logp_wksl = (2 - ensemble_wp[:, -2][:, np.newaxis, np.newaxis, np.newaxis]) * prior.discrete_prior.marginalization_product_state_log_prior_kl[np.newaxis, :, np.newaxis, :] + likelihood_logp_wksl
+    logp_wksl = prior.discrete_prior.marginalization_product_state_log_prior_kl[np.newaxis, :, np.newaxis, :] + likelihood_logp_wksl
     logp_w += jnp.sum(jax.scipy.special.logsumexp(logp_wksl, axis=(-2, -1)), axis=-1)
     
     # L2 prior on equivalence between MAP ploidy and cr_norm
