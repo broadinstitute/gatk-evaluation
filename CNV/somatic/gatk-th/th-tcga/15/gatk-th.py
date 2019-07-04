@@ -195,20 +195,26 @@ def generate_label_ordered_product_states_and_log_prior(discrete_prior_config):
                                                                                                       np.sum(np.abs(label_ordered_allelic_copy_number_product_states_lij[:, 0, :] - label_ordered_allelic_copy_number_product_states_lij[:, 1, :]), axis=-1), 
                                                                                                       np.sum(np.abs(label_ordered_allelic_copy_number_product_states_lij[:, 1, :] - label_ordered_allelic_copy_number_product_states_lij[:, 2, :]), axis=-1)])).transpose()
 
+    # penalize non-normal states
+    unnorm_label_ordered_product_state_prior_li *= (allelic_copy_number_change_prior_prob)**(np.any(label_ordered_allelic_copy_number_product_states_lij != normal_allelic_copy_number_state, axis=(1, 2)))[:, np.newaxis]
+
     # remove states where clonal and subclonal populations have identical event (clonal states should be indicated by a zero subclonal cancer cell fraction with a normal subclone)
 #    unnorm_label_ordered_product_state_prior_li[(np.all(label_ordered_allelic_copy_number_product_states_lij[:, 1, :] == label_ordered_allelic_copy_number_product_states_lij[:, 2, :], axis=1)) * 
 #                                                (np.any(label_ordered_allelic_copy_number_product_states_lij[:, 1, :] != normal_allelic_copy_number_state, axis=1))] = 0.
 
-    # remove unphysical states where normal (clonal) deletions are reverted in clonal/subclonal (subclonal) population (except for clonal states)
+#    # remove unphysical states where normal (clonal) deletions are reverted in clonal/subclonal (subclonal) population (except for clonal states)
+#    unnorm_label_ordered_product_state_prior_li[np.any((label_ordered_allelic_copy_number_product_states_lij[:, 0, :] == 0) * (label_ordered_allelic_copy_number_product_states_lij[:, 1, :] != 0), axis=1)] = 0.
+#    unnorm_label_ordered_product_state_prior_li[np.any((label_ordered_allelic_copy_number_product_states_lij[:, 0, :] == 0) * (label_ordered_allelic_copy_number_product_states_lij[:, 2, :] != 0), axis=1)] = 0.
+#    unnorm_label_ordered_product_state_prior_li[np.any((label_ordered_allelic_copy_number_product_states_lij[:, 1, :] == 0) * (label_ordered_allelic_copy_number_product_states_lij[:, 2, :] != 0), axis=1) * 
+#                                                np.any(label_ordered_allelic_copy_number_product_states_lij[:, 2, :] != normal_allelic_copy_number_state, axis=1)] = 0.
+
+    # remove unphysical states where normal (clonal) deletions are reverted in clonal/subclonal (subclonal) population
     unnorm_label_ordered_product_state_prior_li[np.any((label_ordered_allelic_copy_number_product_states_lij[:, 0, :] == 0) * (label_ordered_allelic_copy_number_product_states_lij[:, 1, :] != 0), axis=1)] = 0.
     unnorm_label_ordered_product_state_prior_li[np.any((label_ordered_allelic_copy_number_product_states_lij[:, 0, :] == 0) * (label_ordered_allelic_copy_number_product_states_lij[:, 2, :] != 0), axis=1)] = 0.
-    unnorm_label_ordered_product_state_prior_li[np.any((label_ordered_allelic_copy_number_product_states_lij[:, 1, :] == 0) * (label_ordered_allelic_copy_number_product_states_lij[:, 2, :] != 0), axis=1) * 
-                                                np.any(label_ordered_allelic_copy_number_product_states_lij[:, 2, :] != normal_allelic_copy_number_state, axis=1)] = 0.
+    unnorm_label_ordered_product_state_prior_li[np.any((label_ordered_allelic_copy_number_product_states_lij[:, 1, :] == 0) * (label_ordered_allelic_copy_number_product_states_lij[:, 2, :] != 0), axis=1)] = 0.
 
     # heavily penalize hom dels
-    unnorm_label_ordered_product_state_prior_li[np.all(label_ordered_allelic_copy_number_product_states_lij[:, 0, :] == 0, axis=-1)] = hom_del_prior_prob
-    unnorm_label_ordered_product_state_prior_li[np.all(label_ordered_allelic_copy_number_product_states_lij[:, 1, :] == 0, axis=-1)] = hom_del_prior_prob
-    unnorm_label_ordered_product_state_prior_li[np.all(label_ordered_allelic_copy_number_product_states_lij[:, 2, :] == 0, axis=-1)] = hom_del_prior_prob
+    unnorm_label_ordered_product_state_prior_li[np.any(np.all(label_ordered_allelic_copy_number_product_states_lij == 0, axis=-1), axis=-1)] *= hom_del_prior_prob
 
     is_prior_nonzero_l = np.all(unnorm_label_ordered_product_state_prior_li > 0., axis=-1)
     label_ordered_allelic_copy_number_product_states_lij = label_ordered_allelic_copy_number_product_states_lij[is_prior_nonzero_l]
@@ -336,7 +342,6 @@ def prior_logp(prior, transformed_parameters):
     logp += prior.continuous_prior.purity_beta.logpdf(transformed_parameters.purity)
     logp += prior.continuous_prior.cr_norm_lognorm.logpdf(transformed_parameters.cr_norm)
     return logp
-    
   
 def logp(transformed_parameters_array, prior, data):
     transformed_parameters = transformed_parameters_array_to_tuple(transformed_parameters_array)
@@ -833,9 +838,9 @@ discrete_prior_config = DiscretePriorConfig(
     allelic_copy_number_states = np.arange(6 + 1),
     normal_allelic_copy_number_state = 1,
     allelic_copy_number_change_prior_prob = 0.99,
-    hom_del_prior_prob = 1E-6,
+    hom_del_prior_prob = 0.5,
     num_marginalization_product_states = 200,
-    normal_population_event_length_scale = 1E4,
+    normal_population_event_length_scale = 1E5,
     tumor_population_event_length_scale = 1E8)
 
 global_discrete_prior = generate_label_ordered_product_states_and_log_prior(discrete_prior_config)
@@ -849,10 +854,10 @@ ContinuousPriorConfig = namedtuple('ContinuousPriorConfig', ['num_subclonal_popu
                                                              'cr_norm_constraint_scale'])
 continuous_prior_config = ContinuousPriorConfig(
     num_subclonal_populations = 4,
-    subclonal_cancer_cell_fraction_alpha = 1E-2,
+    subclonal_cancer_cell_fraction_alpha = 1E-3,
     purity_a = 1.,
     purity_b = 10.,
-    cr_norm_s = 0.05,
+    cr_norm_s = 0.1,
     cr_norm_scale = 2.,
     cr_norm_constraint_scale = np.sqrt(1E-3))
 

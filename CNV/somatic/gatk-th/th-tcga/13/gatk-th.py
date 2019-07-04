@@ -195,15 +195,23 @@ def generate_label_ordered_product_states_and_log_prior(discrete_prior_config):
                                                                                                       np.sum(np.abs(label_ordered_allelic_copy_number_product_states_lij[:, 0, :] - label_ordered_allelic_copy_number_product_states_lij[:, 1, :]), axis=-1), 
                                                                                                       np.sum(np.abs(label_ordered_allelic_copy_number_product_states_lij[:, 1, :] - label_ordered_allelic_copy_number_product_states_lij[:, 2, :]), axis=-1)])).transpose()
 
+    # penalize non-normal states
+    unnorm_label_ordered_product_state_prior_li *= (allelic_copy_number_change_prior_prob)**(np.any(label_ordered_allelic_copy_number_product_states_lij != normal_allelic_copy_number_state, axis=(1, 2)))[:, np.newaxis]
+
     # remove states where clonal and subclonal populations have identical event (clonal states should be indicated by a zero subclonal cancer cell fraction with a normal subclone)
 #    unnorm_label_ordered_product_state_prior_li[(np.all(label_ordered_allelic_copy_number_product_states_lij[:, 1, :] == label_ordered_allelic_copy_number_product_states_lij[:, 2, :], axis=1)) * 
 #                                                (np.any(label_ordered_allelic_copy_number_product_states_lij[:, 1, :] != normal_allelic_copy_number_state, axis=1))] = 0.
 
-    # remove unphysical states where normal (clonal) deletions are reverted in clonal/subclonal (subclonal) population (except for clonal states)
+#    # remove unphysical states where normal (clonal) deletions are reverted in clonal/subclonal (subclonal) population (except for clonal states)
+#    unnorm_label_ordered_product_state_prior_li[np.any((label_ordered_allelic_copy_number_product_states_lij[:, 0, :] == 0) * (label_ordered_allelic_copy_number_product_states_lij[:, 1, :] != 0), axis=1)] = 0.
+#    unnorm_label_ordered_product_state_prior_li[np.any((label_ordered_allelic_copy_number_product_states_lij[:, 0, :] == 0) * (label_ordered_allelic_copy_number_product_states_lij[:, 2, :] != 0), axis=1)] = 0.
+#    unnorm_label_ordered_product_state_prior_li[np.any((label_ordered_allelic_copy_number_product_states_lij[:, 1, :] == 0) * (label_ordered_allelic_copy_number_product_states_lij[:, 2, :] != 0), axis=1) * 
+#                                                np.any(label_ordered_allelic_copy_number_product_states_lij[:, 2, :] != normal_allelic_copy_number_state, axis=1)] = 0.
+
+    # remove unphysical states where normal (clonal) deletions are reverted in clonal/subclonal (subclonal) population
     unnorm_label_ordered_product_state_prior_li[np.any((label_ordered_allelic_copy_number_product_states_lij[:, 0, :] == 0) * (label_ordered_allelic_copy_number_product_states_lij[:, 1, :] != 0), axis=1)] = 0.
     unnorm_label_ordered_product_state_prior_li[np.any((label_ordered_allelic_copy_number_product_states_lij[:, 0, :] == 0) * (label_ordered_allelic_copy_number_product_states_lij[:, 2, :] != 0), axis=1)] = 0.
-    unnorm_label_ordered_product_state_prior_li[np.any((label_ordered_allelic_copy_number_product_states_lij[:, 1, :] == 0) * (label_ordered_allelic_copy_number_product_states_lij[:, 2, :] != 0), axis=1) * 
-                                                np.any(label_ordered_allelic_copy_number_product_states_lij[:, 2, :] != normal_allelic_copy_number_state, axis=1)] = 0.
+    unnorm_label_ordered_product_state_prior_li[np.any((label_ordered_allelic_copy_number_product_states_lij[:, 1, :] == 0) * (label_ordered_allelic_copy_number_product_states_lij[:, 2, :] != 0), axis=1)] = 0.
 
     # heavily penalize hom dels
     unnorm_label_ordered_product_state_prior_li[np.all(label_ordered_allelic_copy_number_product_states_lij[:, 0, :] == 0, axis=-1)] = hom_del_prior_prob
@@ -336,7 +344,6 @@ def prior_logp(prior, transformed_parameters):
     logp += prior.continuous_prior.purity_beta.logpdf(transformed_parameters.purity)
     logp += prior.continuous_prior.cr_norm_lognorm.logpdf(transformed_parameters.cr_norm)
     return logp
-    
   
 def logp(transformed_parameters_array, prior, data):
     transformed_parameters = transformed_parameters_array_to_tuple(transformed_parameters_array)
@@ -673,9 +680,6 @@ def plot_corner(parameter_samples, output_path, output_prefix, show=True):
         plt.show()
     plt.close()
     
-def big_end(data, k, min_length=0.0025):
-    return max(data.end_k[k], data.start_k[k] + min_length)
-    
 def plot_copy_number_ijk_samples(copy_number_ijk_samples, data, allelic_copy_number_states, output_path, output_prefix, show=True):
     num_samples, num_populations, num_alleles, num_segments = np.shape(copy_number_ijk_samples)
     
@@ -702,7 +706,7 @@ def plot_copy_number_ijk_samples(copy_number_ijk_samples, data, allelic_copy_num
             for j in range(num_alleles):
                 colors = np.tile(allele_rgba[j], (num_states, 1))
                 colors[:, 3] *= normalized_counts
-                lc = LineCollection([[[data.start_k[k], copy_number_ij_state[i][j]], [big_end(data, k), copy_number_ij_state[i][j]]] for copy_number_ij_state in copy_number_ij_states],
+                lc = LineCollection([[[data.start_k[k], copy_number_ij_state[i][j]], [data.end_k[k], copy_number_ij_state[i][j]]] for copy_number_ij_state in copy_number_ij_states],
                                     color=colors, lw=4, alpha=0.5)
                 axs[i].add_collection(lc)
     
@@ -728,13 +732,13 @@ def plot_subclonal_diagram(parameters, discrete_parameters, data, normal_allelic
     
     ax.vlines(data.end_k[data.is_contig_end_k], 0, 4, color='grey', linestyle='dashed', alpha=0.5)
     
-    lc = LineCollection([[[data.start_k[k], 0], [big_end(data, k), 0]] for k in np.nonzero(is_normal_k)[0]],
+    lc = LineCollection([[[data.start_k[k], 0], [data.end_k[k], 0]] for k in np.nonzero(is_normal_k)[0]],
                         color='b', lw=4, alpha=0.5, label='normal')
     ax.add_collection(lc)
-    lc = LineCollection([[[data.start_k[k], 0], [big_end(data, k), 0]] for k in np.nonzero(~is_normal_k & is_clonal_k)[0]],
+    lc = LineCollection([[[data.start_k[k], 0], [data.end_k[k], 0]] for k in np.nonzero(~is_normal_k & is_clonal_k)[0]],
                         color='g', lw=4, alpha=0.5, label='clonal')
     ax.add_collection(lc)
-    lc = LineCollection([[[data.start_k[k], subclonal_cancer_cell_fraction_k[k]], [big_end(data, k), subclonal_cancer_cell_fraction_k[k]]] for k in np.nonzero(~is_normal_k & ~is_clonal_k)[0]],
+    lc = LineCollection([[[data.start_k[k], subclonal_cancer_cell_fraction_k[k]], [data.end_k[k], subclonal_cancer_cell_fraction_k[k]]] for k in np.nonzero(~is_normal_k & ~is_clonal_k)[0]],
                         color='r', lw=4, alpha=0.5)
     ax.add_collection(lc)
     
@@ -748,20 +752,6 @@ def plot_subclonal_diagram(parameters, discrete_parameters, data, normal_allelic
     plt.close()
   
 def plot_fit(parameters, discrete_parameters, data, modeled_segments, output_path, output_prefix, show=True):
-    def make_cr_rectangle(data, modeled_segments, k):
-        start = data.start_k[k]
-        end = big_end(data, k)
-        cr_10 = 2**modeled_segments.iloc[k]['LOG2_COPY_RATIO_POSTERIOR_10']
-        cr_90 = 2**modeled_segments.iloc[k]['LOG2_COPY_RATIO_POSTERIOR_90']
-        return Rectangle([start, cr_10], end - start, cr_90 - cr_10)
-        
-    def make_maf_rectangle(data, modeled_segments, k):
-        start = data.start_k[k]
-        end = big_end(data, k)
-        maf_10 = modeled_segments.iloc[k]['MINOR_ALLELE_FRACTION_POSTERIOR_10']
-        maf_90 = modeled_segments.iloc[k]['MINOR_ALLELE_FRACTION_POSTERIOR_90']
-        return Rectangle([start, maf_10], end - start, maf_90 - maf_10)
-        
     subclonal_cancer_cell_fraction_s, purity, cr_norm = parameters
     copy_number_ijk, z_sk = discrete_parameters
     
@@ -788,24 +778,30 @@ def plot_fit(parameters, discrete_parameters, data, modeled_segments, output_pat
     axs[0].vlines(data.end_k[data.is_contig_end_k], 0, 4, color='grey', linestyle='dashed', alpha=0.5)
     axs[1].vlines(data.end_k[data.is_contig_end_k], 0, 0.5, color='grey', linestyle='dashed', alpha=0.5)
     
-    pc = PatchCollection([make_cr_rectangle(data, modeled_segments, k) for k in range(num_segments)],
-                         color='r', alpha=0.25)
-    axs[0].add_collection(pc)
-    lc = LineCollection([[[data.start_k[k], 2**modeled_segments.iloc[k]['LOG2_COPY_RATIO_POSTERIOR_50']], [big_end(data, k), 2**modeled_segments.iloc[k]['LOG2_COPY_RATIO_POSTERIOR_50']]] for k in range(num_segments)],
-                        color='r', lw=2, alpha=0.75)
+    lc = LineCollection([[[data.start_k[k], 2**modeled_segments.iloc[k]['LOG2_COPY_RATIO_POSTERIOR_10']], [data.end_k[k], 2**modeled_segments.iloc[k]['LOG2_COPY_RATIO_POSTERIOR_10']]] for k in range(num_segments)],
+                        color='r', lw=2, alpha=0.5)
     axs[0].add_collection(lc)
-    lc = LineCollection([[[data.start_k[k], 2**log2cr_k[k]], [big_end(data, k), 2**log2cr_k[k]]] for k in range(num_segments)],
-                        color='b', lw=2, alpha=0.75)
+    lc = LineCollection([[[data.start_k[k], 2**modeled_segments.iloc[k]['LOG2_COPY_RATIO_POSTERIOR_50']], [data.end_k[k], 2**modeled_segments.iloc[k]['LOG2_COPY_RATIO_POSTERIOR_50']]] for k in range(num_segments)],
+                        color='r', lw=4, alpha=0.5)
+    axs[0].add_collection(lc)
+    lc = LineCollection([[[data.start_k[k], 2**modeled_segments.iloc[k]['LOG2_COPY_RATIO_POSTERIOR_90']], [data.end_k[k], 2**modeled_segments.iloc[k]['LOG2_COPY_RATIO_POSTERIOR_90']]] for k in range(num_segments)],
+                        color='r', lw=2, alpha=0.5)
+    axs[0].add_collection(lc)
+    lc = LineCollection([[[data.start_k[k], 2**log2cr_k[k]], [data.end_k[k], 2**log2cr_k[k]]] for k in range(num_segments)],
+                        color='b', lw=4, alpha=0.5)
     axs[0].add_collection(lc)
     
-    pc = PatchCollection([make_maf_rectangle(data, modeled_segments, k) for k in range(num_segments)],
-                         color='r', alpha=0.25)
-    axs[1].add_collection(pc)
-    lc = LineCollection([[[data.start_k[k], modeled_segments.iloc[k]['MINOR_ALLELE_FRACTION_POSTERIOR_50']], [big_end(data, k), modeled_segments.iloc[k]['MINOR_ALLELE_FRACTION_POSTERIOR_50']]] for k in range(num_segments)],
-                        color='r', lw=2, alpha=0.75, label='data')
+    lc = LineCollection([[[data.start_k[k], modeled_segments.iloc[k]['MINOR_ALLELE_FRACTION_POSTERIOR_10']], [data.end_k[k], modeled_segments.iloc[k]['MINOR_ALLELE_FRACTION_POSTERIOR_10']]] for k in range(num_segments)],
+                        color='r', lw=2, alpha=0.5)
     axs[1].add_collection(lc)
-    lc = LineCollection([[[data.start_k[k], maf_k[k]], [big_end(data, k), maf_k[k]]] for k in range(num_segments)],
-                        color='b', lw=2, alpha=0.75, label='model')
+    lc = LineCollection([[[data.start_k[k], modeled_segments.iloc[k]['MINOR_ALLELE_FRACTION_POSTERIOR_50']], [data.end_k[k], modeled_segments.iloc[k]['MINOR_ALLELE_FRACTION_POSTERIOR_50']]] for k in range(num_segments)],
+                        color='r', lw=4, alpha=0.5, label='data')
+    axs[1].add_collection(lc)
+    lc = LineCollection([[[data.start_k[k], modeled_segments.iloc[k]['MINOR_ALLELE_FRACTION_POSTERIOR_90']], [data.end_k[k], modeled_segments.iloc[k]['MINOR_ALLELE_FRACTION_POSTERIOR_90']]] for k in range(num_segments)],
+                        color='r', lw=2, alpha=0.5)
+    axs[1].add_collection(lc)
+    lc = LineCollection([[[data.start_k[k], maf_k[k]], [data.end_k[k], maf_k[k]]] for k in range(num_segments)],
+                        color='b', lw=4, alpha=0.5, label='model')
     axs[1].add_collection(lc)
     
     axs[1].legend(loc='lower right', bbox_to_anchor= (1.08, 0.))
@@ -849,10 +845,10 @@ ContinuousPriorConfig = namedtuple('ContinuousPriorConfig', ['num_subclonal_popu
                                                              'cr_norm_constraint_scale'])
 continuous_prior_config = ContinuousPriorConfig(
     num_subclonal_populations = 4,
-    subclonal_cancer_cell_fraction_alpha = 1E-2,
+    subclonal_cancer_cell_fraction_alpha = 1E-3,
     purity_a = 1.,
     purity_b = 10.,
-    cr_norm_s = 0.05,
+    cr_norm_s = 0.5,
     cr_norm_scale = 2.,
     cr_norm_constraint_scale = np.sqrt(1E-3))
 

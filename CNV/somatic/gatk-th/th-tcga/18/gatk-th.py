@@ -35,12 +35,13 @@ import corner
 # posterior fitting
 #===============================================================================
 
+eps_cr = 1E-3
 eps_posterior_fitting = 1E-10
 
 def fit_t_to_log2cr(modeled_segment, t_degrees_of_freedom):
-    log2cr_10 = modeled_segment['LOG2_COPY_RATIO_POSTERIOR_10']
-    log2cr_50 = modeled_segment['LOG2_COPY_RATIO_POSTERIOR_50']
-    log2cr_90 = modeled_segment['LOG2_COPY_RATIO_POSTERIOR_90']
+    log2cr_10 = np.log2(2**modeled_segment['LOG2_COPY_RATIO_POSTERIOR_10'] + eps_cr)
+    log2cr_50 = np.log2(2**modeled_segment['LOG2_COPY_RATIO_POSTERIOR_50'] + eps_cr)
+    log2cr_90 = np.log2(2**modeled_segment['LOG2_COPY_RATIO_POSTERIOR_90'] + eps_cr)
     
     if np.isnan(log2cr_50):
         return np.array([np.nan, np.nan])
@@ -166,8 +167,9 @@ def generate_label_ordered_product_states_and_log_prior(discrete_prior_config):
     num_alleles = discrete_prior_config.num_alleles
     allelic_copy_number_states = discrete_prior_config.allelic_copy_number_states
     normal_allelic_copy_number_state = discrete_prior_config.normal_allelic_copy_number_state
-    allelic_copy_number_change_prior_prob = discrete_prior_config.allelic_copy_number_change_prior_prob
-    hom_del_prior_prob = discrete_prior_config.hom_del_prior_prob
+    copy_number_event_prior_penalty = discrete_prior_config.copy_number_event_prior_penalty
+    allelic_copy_number_change_prior_penalty = discrete_prior_config.allelic_copy_number_change_prior_penalty
+    hom_del_prior_penalty = discrete_prior_config.hom_del_prior_penalty
 
     num_allelic_copy_number_states = len(allelic_copy_number_states)
 
@@ -189,26 +191,44 @@ def generate_label_ordered_product_states_and_log_prior(discrete_prior_config):
     is_label_ordered_l = np.array([calculate_is_label_ordered(allelic_copy_number_product_state_ij) for allelic_copy_number_product_state_ij in allelic_copy_number_product_states_lij])
     label_ordered_allelic_copy_number_product_states_lij = allelic_copy_number_product_states_lij[is_label_ordered_l]
     print('Number of label-ordered product states:', len(label_ordered_allelic_copy_number_product_states_lij))
+    
+    unnorm_label_ordered_product_state_prior_li = np.ones((len(label_ordered_allelic_copy_number_product_states_lij), num_overlapping_populations))
+    
+    # penalize non-germline states
+    is_non_germline_l = ~np.all((label_ordered_allelic_copy_number_product_states_lij[:, 0, :] == label_ordered_allelic_copy_number_product_states_lij[:, 1, :]) *
+                                (label_ordered_allelic_copy_number_product_states_lij[:, 0, :] == label_ordered_allelic_copy_number_product_states_lij[:, 2, :]), axis=-1)
+    unnorm_label_ordered_product_state_prior_li *= (1. - copy_number_event_prior_penalty)**is_non_germline_l[:, np.newaxis]
+    
+    # penalize subclonal non-normal/non-clonal states
+#    is_subclonal_li = (np.array([np.ones(len(label_ordered_allelic_copy_number_product_states_lij)),
+#                                 np.ones(len(label_ordered_allelic_copy_number_product_states_lij)),
+#                                 np.any(label_ordered_allelic_copy_number_product_states_lij[:, 2, :] != normal_allelic_copy_number_state, axis=-1) *
+#                                    ~np.all(label_ordered_allelic_copy_number_product_states_lij[:, 1, :] == label_ordered_allelic_copy_number_product_states_lij[:, 2, :], axis=-1)])).transpose()
+#    unnorm_label_ordered_product_state_prior_li *= (1. - copy_number_event_prior_penalty)**is_subclonal_li
 
     # penalize copy-number changes from population to population
-    unnorm_label_ordered_product_state_prior_li = (allelic_copy_number_change_prior_prob)**(np.array([np.sum(np.abs(label_ordered_allelic_copy_number_product_states_lij[:, 0, :] - normal_allelic_copy_number_state), axis=-1),
-                                                                                                      np.sum(np.abs(label_ordered_allelic_copy_number_product_states_lij[:, 0, :] - label_ordered_allelic_copy_number_product_states_lij[:, 1, :]), axis=-1), 
-                                                                                                      np.sum(np.abs(label_ordered_allelic_copy_number_product_states_lij[:, 1, :] - label_ordered_allelic_copy_number_product_states_lij[:, 2, :]), axis=-1)])).transpose()
-
+    delta_copy_number_li = (np.array([np.sum(np.abs(label_ordered_allelic_copy_number_product_states_lij[:, 0, :] - normal_allelic_copy_number_state), axis=-1),
+                                      np.sum(np.abs(label_ordered_allelic_copy_number_product_states_lij[:, 0, :] - label_ordered_allelic_copy_number_product_states_lij[:, 1, :]), axis=-1), 
+                                      np.sum(np.abs(label_ordered_allelic_copy_number_product_states_lij[:, 1, :] - label_ordered_allelic_copy_number_product_states_lij[:, 2, :]), axis=-1)])).transpose()
+    unnorm_label_ordered_product_state_prior_li *= (1. - allelic_copy_number_change_prior_penalty)**delta_copy_number_li
+    
     # remove states where clonal and subclonal populations have identical event (clonal states should be indicated by a zero subclonal cancer cell fraction with a normal subclone)
 #    unnorm_label_ordered_product_state_prior_li[(np.all(label_ordered_allelic_copy_number_product_states_lij[:, 1, :] == label_ordered_allelic_copy_number_product_states_lij[:, 2, :], axis=1)) * 
 #                                                (np.any(label_ordered_allelic_copy_number_product_states_lij[:, 1, :] != normal_allelic_copy_number_state, axis=1))] = 0.
 
-    # remove unphysical states where normal (clonal) deletions are reverted in clonal/subclonal (subclonal) population (except for clonal states)
+#    # remove unphysical states where normal (clonal) deletions are reverted in clonal/subclonal (subclonal) population (except for clonal states)
+#    unnorm_label_ordered_product_state_prior_li[np.any((label_ordered_allelic_copy_number_product_states_lij[:, 0, :] == 0) * (label_ordered_allelic_copy_number_product_states_lij[:, 1, :] != 0), axis=1)] = 0.
+#    unnorm_label_ordered_product_state_prior_li[np.any((label_ordered_allelic_copy_number_product_states_lij[:, 0, :] == 0) * (label_ordered_allelic_copy_number_product_states_lij[:, 2, :] != 0), axis=1)] = 0.
+#    unnorm_label_ordered_product_state_prior_li[np.any((label_ordered_allelic_copy_number_product_states_lij[:, 1, :] == 0) * (label_ordered_allelic_copy_number_product_states_lij[:, 2, :] != 0), axis=1) * 
+#                                                np.any(label_ordered_allelic_copy_number_product_states_lij[:, 2, :] != normal_allelic_copy_number_state, axis=1)] = 0.
+
+    # remove unphysical states where normal (clonal) deletions are reverted in clonal/subclonal (subclonal) population
     unnorm_label_ordered_product_state_prior_li[np.any((label_ordered_allelic_copy_number_product_states_lij[:, 0, :] == 0) * (label_ordered_allelic_copy_number_product_states_lij[:, 1, :] != 0), axis=1)] = 0.
     unnorm_label_ordered_product_state_prior_li[np.any((label_ordered_allelic_copy_number_product_states_lij[:, 0, :] == 0) * (label_ordered_allelic_copy_number_product_states_lij[:, 2, :] != 0), axis=1)] = 0.
-    unnorm_label_ordered_product_state_prior_li[np.any((label_ordered_allelic_copy_number_product_states_lij[:, 1, :] == 0) * (label_ordered_allelic_copy_number_product_states_lij[:, 2, :] != 0), axis=1) * 
-                                                np.any(label_ordered_allelic_copy_number_product_states_lij[:, 2, :] != normal_allelic_copy_number_state, axis=1)] = 0.
+    unnorm_label_ordered_product_state_prior_li[np.any((label_ordered_allelic_copy_number_product_states_lij[:, 1, :] == 0) * (label_ordered_allelic_copy_number_product_states_lij[:, 2, :] != 0), axis=1)] = 0.
 
     # heavily penalize hom dels
-    unnorm_label_ordered_product_state_prior_li[np.all(label_ordered_allelic_copy_number_product_states_lij[:, 0, :] == 0, axis=-1)] = hom_del_prior_prob
-    unnorm_label_ordered_product_state_prior_li[np.all(label_ordered_allelic_copy_number_product_states_lij[:, 1, :] == 0, axis=-1)] = hom_del_prior_prob
-    unnorm_label_ordered_product_state_prior_li[np.all(label_ordered_allelic_copy_number_product_states_lij[:, 2, :] == 0, axis=-1)] = hom_del_prior_prob
+    unnorm_label_ordered_product_state_prior_li[np.any(np.all(label_ordered_allelic_copy_number_product_states_lij == 0, axis=-1), axis=-1)] *= (1. - hom_del_prior_penalty)
 
     is_prior_nonzero_l = np.all(unnorm_label_ordered_product_state_prior_li > 0., axis=-1)
     label_ordered_allelic_copy_number_product_states_lij = label_ordered_allelic_copy_number_product_states_lij[is_prior_nonzero_l]
@@ -313,7 +333,7 @@ def calculate_log2cr_maf_sl(parameters, data, use_marginalization_states):
                                                    parameters.purity * parameters.subclonal_cancer_cell_fraction_s])
     population_weighted_copy_number_slj = np.einsum('is,lij->slj', overlapping_population_fraction_is, allelic_copy_number_product_states_lij)
     total_cr_sl = np.sum(population_weighted_copy_number_slj, axis=-1)
-    log2cr_sl = np.log2(total_cr_sl / (parameters.cr_norm + eps_model) + eps_model)
+    log2cr_sl = np.log2(total_cr_sl / (parameters.cr_norm + eps_model) + eps_cr)
     maf_sl = np.min(population_weighted_copy_number_slj, axis=-1) / (total_cr_sl + eps_model)
     return log2cr_sl, maf_sl
   
@@ -336,7 +356,6 @@ def prior_logp(prior, transformed_parameters):
     logp += prior.continuous_prior.purity_beta.logpdf(transformed_parameters.purity)
     logp += prior.continuous_prior.cr_norm_lognorm.logpdf(transformed_parameters.cr_norm)
     return logp
-    
   
 def logp(transformed_parameters_array, prior, data):
     transformed_parameters = transformed_parameters_array_to_tuple(transformed_parameters_array)
@@ -501,7 +520,7 @@ def calculate_log2cr_maf_wsl(ensemble_wp, data, use_marginalization_states):
                                                    purity_ws * subclonal_cancer_cell_fraction_ws])
     population_weighted_copy_number_wslj = np.einsum('iws,lij->wslj', overlapping_population_fraction_iws, allelic_copy_number_product_states_lij)
     total_cr_wsl = np.sum(population_weighted_copy_number_wslj, axis=-1)
-    log2cr_wsl = np.log2(total_cr_wsl / (cr_norm_w[:, np.newaxis, np.newaxis] + eps_model) + eps_model)
+    log2cr_wsl = np.log2(total_cr_wsl / (cr_norm_w[:, np.newaxis, np.newaxis] + eps_model) + eps_cr)
     maf_wsl = np.min(population_weighted_copy_number_wslj, axis=-1) / (total_cr_wsl + eps_model)
     return log2cr_wsl, maf_wsl
   
@@ -673,7 +692,7 @@ def plot_corner(parameter_samples, output_path, output_prefix, show=True):
         plt.show()
     plt.close()
     
-def big_end(data, k, min_length=0.0025):
+def big_end(data, k, min_length=0.005):
     return max(data.end_k[k], data.start_k[k] + min_length)
     
 def plot_copy_number_ijk_samples(copy_number_ijk_samples, data, allelic_copy_number_states, output_path, output_prefix, show=True):
@@ -822,8 +841,9 @@ DiscretePriorConfig = namedtuple('DiscretePriorConfig', ['num_overlapping_popula
                                                          'num_alleles',
                                                          'allelic_copy_number_states',
                                                          'normal_allelic_copy_number_state',
-                                                         'allelic_copy_number_change_prior_prob',
-                                                         'hom_del_prior_prob',
+                                                         'copy_number_event_prior_penalty',
+                                                         'allelic_copy_number_change_prior_penalty',
+                                                         'hom_del_prior_penalty',
                                                          'num_marginalization_product_states',
                                                          'normal_population_event_length_scale',
                                                          'tumor_population_event_length_scale'])
@@ -832,8 +852,9 @@ discrete_prior_config = DiscretePriorConfig(
     num_alleles = 2,
     allelic_copy_number_states = np.arange(6 + 1),
     normal_allelic_copy_number_state = 1,
-    allelic_copy_number_change_prior_prob = 0.99,
-    hom_del_prior_prob = 1E-6,
+    copy_number_event_prior_penalty = 0.01,
+    allelic_copy_number_change_prior_penalty = 0.01,
+    hom_del_prior_penalty = 0.,
     num_marginalization_product_states = 200,
     normal_population_event_length_scale = 1E4,
     tumor_population_event_length_scale = 1E8)
@@ -879,7 +900,7 @@ Prior = namedtuple('Prior', ['continuous_prior',
                              'discrete_prior'])
 
 LikelihoodConfig = namedtuple('LikelihoodConfig', ['t_degrees_of_freedom'])
-likelihood_config = LikelihoodConfig(t_degrees_of_freedom = 5)
+likelihood_config = LikelihoodConfig(t_degrees_of_freedom = 10)
 
 InferenceConfig = namedtuple('InferenceConfig', ['num_parameters',
                                                  'num_walkers',
