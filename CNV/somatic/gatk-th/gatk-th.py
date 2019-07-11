@@ -195,13 +195,13 @@ def generate_label_ordered_product_states_and_log_prior(discrete_prior_config):
     unnorm_label_ordered_product_state_prior_li = np.ones((len(label_ordered_allelic_copy_number_product_states_lij), num_overlapping_populations))
     
     # penalize non-normal states
-    is_non_normal_l = np.any(label_ordered_allelic_copy_number_product_states_lij != normal_allelic_copy_number_state, axis=(1, 2))
-    unnorm_label_ordered_product_state_prior_li *= (1. - copy_number_event_prior_penalty)**is_non_normal_l[:, np.newaxis]
+#    is_non_normal_l = np.any(label_ordered_allelic_copy_number_product_states_lij != normal_allelic_copy_number_state, axis=(1, 2))
+#    unnorm_label_ordered_product_state_prior_li *= (1. - copy_number_event_prior_penalty)**is_non_normal_l[:, np.newaxis]
     
     # penalize non-germline states
-    is_non_germline_l = ~np.all((label_ordered_allelic_copy_number_product_states_lij[:, 0, :] == label_ordered_allelic_copy_number_product_states_lij[:, 1, :]) *
-                                (label_ordered_allelic_copy_number_product_states_lij[:, 0, :] == label_ordered_allelic_copy_number_product_states_lij[:, 2, :]), axis=-1)
-    unnorm_label_ordered_product_state_prior_li *= (1. - copy_number_event_prior_penalty)**is_non_germline_l[:, np.newaxis]
+#    is_non_germline_l = ~np.all((label_ordered_allelic_copy_number_product_states_lij[:, 0, :] == label_ordered_allelic_copy_number_product_states_lij[:, 1, :]) *
+#                                (label_ordered_allelic_copy_number_product_states_lij[:, 0, :] == label_ordered_allelic_copy_number_product_states_lij[:, 2, :]), axis=-1)
+#    unnorm_label_ordered_product_state_prior_li *= (1. - copy_number_event_prior_penalty)**is_non_germline_l[:, np.newaxis]
     
     # penalize subclonal non-clonal states
 #    is_subclonal_li = (np.array([np.ones(len(label_ordered_allelic_copy_number_product_states_lij)),
@@ -645,9 +645,9 @@ def run_mcmc_vectorized(inference_config, prior, data, logp):
     # burn-in sampling
     for transformed_walker_P, _, _ in tqdm.tqdm(sampler.sample(transformed_ensemble_wP, iterations=num_burn_in), total=num_burn_in):
         pass
-    tumor_ploidy_samples.clear()
     sampler.reset()
-    # sampling   
+    tumor_ploidy_samples.clear()
+    # sampling
     for transformed_walker_P, _, _ in tqdm.tqdm(sampler.sample(transformed_ensemble_wP, iterations=num_samples), total=num_samples):
         pass
     
@@ -663,7 +663,7 @@ def run_mcmc_vectorized(inference_config, prior, data, logp):
     purity_samples = transformed_parameter_samples[:, -2][:, np.newaxis]
     cr_norm_samples = transformed_parameter_samples[:, -1][:, np.newaxis]
     parameter_samples = np.hstack([subclonal_cancer_cell_fraction_s_samples, purity_samples, cr_norm_samples])
-    tumor_ploidy_samples = np.array(tumor_ploidy_samples)
+    tumor_ploidy_samples = np.array(tumor_ploidy_samples[num_walkers:]) # remove initial ensemble sample
     
     return sampler, parameter_samples, logp_samples, tumor_ploidy_samples
 
@@ -884,7 +884,7 @@ discrete_prior_config = DiscretePriorConfig(
     num_alleles = 2,
     allelic_copy_number_states = np.arange(6 + 1),
     normal_allelic_copy_number_state = 1,
-    copy_number_event_prior_penalty = 0.001,
+    copy_number_event_prior_penalty = 0.01,
     allelic_copy_number_change_prior_penalty = 0.01,
     hom_del_prior_penalty = 0.,
     num_marginalization_product_states = 250,
@@ -902,9 +902,9 @@ ContinuousPriorConfig = namedtuple('ContinuousPriorConfig', ['num_subclonal_popu
                                                              'cr_norm_constraint_scale'])
 continuous_prior_config = ContinuousPriorConfig(
     num_subclonal_populations = 4,
-    subclonal_cancer_cell_fraction_alpha = 1E-2,
-    purity_a = 0.1,
-    purity_b = 1.,
+    subclonal_cancer_cell_fraction_alpha = 1E-3,
+    purity_a = 1.,
+    purity_b = 10.,
     cr_norm_s = 0.1,
     cr_norm_scale = 2.,
     cr_norm_constraint_scale = np.sqrt(1E-3))
@@ -941,8 +941,8 @@ InferenceConfig = namedtuple('InferenceConfig', ['num_parameters',
                                                  'emcee_move'])
 inference_config = InferenceConfig(
     num_parameters = (continuous_prior_config.num_subclonal_populations - 1) + 2,
-    num_walkers = 128,
-    num_burn_in = 200,
+    num_walkers = 256,
+    num_burn_in = 1000,
     num_samples = 50,
 #    emcee_move = emcee.moves.WalkMove()
 #    emcee_move = emcee.moves.StretchMove()
