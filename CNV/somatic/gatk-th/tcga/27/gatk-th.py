@@ -885,7 +885,7 @@ discrete_prior_config = DiscretePriorConfig(
     allelic_copy_number_states = np.arange(6 + 1),
     normal_allelic_copy_number_state = 1,
     copy_number_event_prior_penalty = 0.01,
-    allelic_copy_number_change_prior_penalty = 0.01,
+    allelic_copy_number_change_prior_penalty = 0.1,
     hom_del_prior_penalty = 0.,
     num_marginalization_product_states = 250,
     normal_population_event_length_scale = 1E4,
@@ -901,7 +901,7 @@ ContinuousPriorConfig = namedtuple('ContinuousPriorConfig', ['num_subclonal_popu
                                                              'cr_norm_scale',
                                                              'cr_norm_constraint_scale'])
 continuous_prior_config = ContinuousPriorConfig(
-    num_subclonal_populations = 2,
+    num_subclonal_populations = 4,
     subclonal_cancer_cell_fraction_alpha = 1E-3,
     purity_a = 1.,
     purity_b = 10.,
