@@ -138,17 +138,18 @@ def beta_logpdf(x, a, b, scale=1.):
 #     lPx -= scipy.special.betaln(a, b) + np.log(scale)
     return lPx
 
-def beta_logpdf_jax(x, a, b, scale=1.):
-    # up to factor independent of x
-    x_bnd = jnp.minimum(scale - eps_beta_logpdf, jnp.maximum(eps_beta_logpdf, x)) / scale
-    lPx = jax.scipy.special.xlog1py(b - 1.0, -x_bnd) + jax.scipy.special.xlogy(a - 1.0, x_bnd)
-    return lPx
-beta_logpdf_jax_jit = jax.jit(beta_logpdf_jax)
+# slower than scipy implementation
+# def beta_logpdf_jax(x, a, b, scale=1.):
+#     # up to factor independent of x
+#     x_bnd = jnp.minimum(scale - eps_beta_logpdf, jnp.maximum(eps_beta_logpdf, x)) / scale
+#     lPx = jax.scipy.special.xlog1py(b - 1.0, -x_bnd) + jax.scipy.special.xlogy(a - 1.0, x_bnd)
+#     return lPx
+# beta_logpdf_jax_jit = jax.jit(beta_logpdf_jax)
 
 def dirichlet_hypercube_logp(alpha, z):
     # up to factor involving Gammas independent of z
     alpha_tilde = np.sum(alpha) - np.cumsum(alpha)
-    return np.sum(beta_logpdf_jax_jit(z, a=alpha_tilde[:-1], b=alpha[:-1]))
+    return np.sum(beta_logpdf(z, a=alpha_tilde[:-1], b=alpha[:-1]))
   
 #===============================================================================
 # discrete priors
@@ -291,7 +292,7 @@ def prepare_data_and_discrete_prior(modeled_segments, global_discrete_prior, dis
     
     data = Data(
         obs_log2cr_logp_k = lambda x_k: t_logpdf_jax_jit(x_k, df=likelihood_config.t_degrees_of_freedom, loc=obs_log2cr_mu_sigma_k[:, 0], scale=obs_log2cr_mu_sigma_k[:, 1]),
-        obs_maf_logp_k = lambda x_k: beta_logpdf_jax_jit(x_k, a=obs_maf_a_b_k[:, 0], b=obs_maf_a_b_k[:, 1], scale=0.5),
+        obs_maf_logp_k = lambda x_k: beta_logpdf(x_k, a=obs_maf_a_b_k[:, 0], b=obs_maf_a_b_k[:, 1], scale=0.5),
         num_points_cr_k = data_k[:, 2].astype(int),
         num_points_maf_k = data_k[:, 3].astype(int),
         length_k = length_k,
@@ -523,7 +524,7 @@ def to_hypercube_w(x_wp):
 def dirichlet_hypercube_logp_w(alpha, z_wP):
     # up to factor involving Gammas independent of z_wP
     alpha_tilde = np.sum(alpha) - np.cumsum(alpha)
-    return np.sum(beta_logpdf_jax_jit(z_wP, a=alpha_tilde[:-1], b=alpha[:-1]), axis=1)
+    return np.sum(beta_logpdf(z_wP, a=alpha_tilde[:-1], b=alpha[:-1]), axis=1)
   
 def calculate_log2cr_maf_wsl(ensemble_wp, data, use_marginalization_states):
     num_walkers, num_parameters = np.shape(ensemble_wp)
@@ -883,8 +884,8 @@ discrete_prior_config = DiscretePriorConfig(
     num_alleles = 2,
     allelic_copy_number_states = np.arange(6 + 1),
     normal_allelic_copy_number_state = 1,
-    copy_number_event_prior_penalty = 0.001,
-    allelic_copy_number_change_prior_penalty = 0.001,
+    copy_number_event_prior_penalty = 0.005,
+    allelic_copy_number_change_prior_penalty = 0.005,
     hom_del_prior_penalty = 0.,
     num_marginalization_product_states = 250,
     normal_population_event_length_scale = 1E4,
