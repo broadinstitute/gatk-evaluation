@@ -32,6 +32,7 @@ dependencies:
 - wheel=0.33.4=py36_0
 - xz=5.2.4=h14c3975_1001
 - zlib=1.2.11=h14c3975_1004
+- dill=0.2.9=py36_0
 - libgcc-ng=9.1.0=hdf63c60_0
 - libgfortran-ng=7.3.0=hdf63c60_0
 - libstdcxx-ng=9.1.0=hdf63c60_0

@@ -2,6 +2,7 @@
 
 import os
 import argparse
+import dill as pickle
 import numpy as np
 import pandas as pd
 
@@ -1039,6 +1040,9 @@ def run_th(modeled_segments_path, output_prefix, output_path, global_config, vec
     # output MAP log2CR-MAF fit plot============================================
     
     plot_fit(map_parameters, map_discrete_parameters, data, modeled_segments, output_path, output_prefix, show)
+    plot_fit_args = tuple([map_parameters, map_discrete_parameters, data, modeled_segments, output_path, output_prefix])
+    with open(os.path.join(output_path, output_prefix + '.plotFitArgs.pkl'), 'wb') as f:
+        pickle.dump(plot_fit_args, f)
     
     # output posterior table====================================================
     
