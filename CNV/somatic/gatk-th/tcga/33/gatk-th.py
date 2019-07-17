@@ -204,9 +204,10 @@ def generate_label_ordered_product_states_and_log_prior(discrete_prior_config):
     unnorm_label_ordered_product_state_prior_li *= (1. - copy_number_event_prior_penalty)**is_non_germline_l[:, np.newaxis]
     
     # penalize subclonal non-clonal states
-    is_subclonal_l = ~np.all(label_ordered_allelic_copy_number_product_states_lij[:, 1, :] == label_ordered_allelic_copy_number_product_states_lij[:, 2, :], axis=-1)
-#    unnorm_label_ordered_product_state_prior_li *= (1. - copy_number_event_prior_penalty)**is_subclonal_li
-    unnorm_label_ordered_product_state_prior_li *= ~is_subclonal_l[:, np.newaxis]
+    is_subclonal_li = (np.array([np.ones(len(label_ordered_allelic_copy_number_product_states_lij)),
+                                 np.ones(len(label_ordered_allelic_copy_number_product_states_lij)),
+                                 ~np.all(label_ordered_allelic_copy_number_product_states_lij[:, 1, :] == label_ordered_allelic_copy_number_product_states_lij[:, 2, :], axis=-1)])).transpose()
+    unnorm_label_ordered_product_state_prior_li *= (1. - copy_number_event_prior_penalty)**is_subclonal_li
 
     # penalize copy-number changes from population to population
     delta_copy_number_li = (np.array([np.sum(np.abs(label_ordered_allelic_copy_number_product_states_lij[:, 0, :] - normal_allelic_copy_number_state), axis=-1),
