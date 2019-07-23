@@ -57,6 +57,7 @@ def fit_t_to_log2cr(modeled_segment, t_degrees_of_freedom):
     mu, sigma = scipy.optimize.minimize(loss, x0=[log2cr_50, log2cr_90 - log2cr_10],
                                         method='L-BFGS-B',
                                         bounds=((None, None), (eps_posterior_fitting, None))).x
+#     print(modeled_segment, mu, sigma)
     return np.array([mu, sigma])
 
 def fit_beta_to_maf(modeled_segment):
@@ -77,6 +78,7 @@ def fit_beta_to_maf(modeled_segment):
     a, b = scipy.optimize.minimize(loss, x0=[maf_50, maf_90 - maf_10],
                                    method='L-BFGS-B',
                                    bounds=((eps_posterior_fitting, None), (eps_posterior_fitting, None))).x
+#     print(modeled_segment, a, b, min([max([0.5 * (a - 1) / (a + b - 2), 0.]), 0.5]))
     return np.array([a, b])
 
 #===============================================================================
@@ -85,6 +87,42 @@ def fit_beta_to_maf(modeled_segment):
 
 # hypercube-to-simplex transform: https://arxiv.org/pdf/1010.3436.pdf
 
+@numba.jit(nopython=True)
+def to_simplex(z):
+    m = z.size + 1
+    x = np.zeros(m)
+    x[0] = 1. - z[0]
+    cum_prod = 1.
+    for k in range(1, m - 1):
+        cum_prod *= z[k - 1]
+        x[k] = cum_prod * (1. - z[k]) 
+    x[m - 1] = cum_prod * z[m - 2]
+    return x
+
+@numba.jit(nopython=True)
+def to_hypercube(x):
+    m = x.size
+    z = np.zeros(m - 1)
+    z[0] = 1. - x[0]
+    cum_prod = 1.
+    for k in range(1, m - 1):
+        cum_prod *= z[k - 1]
+        z[k] = 1. - x[k] / cum_prod
+    return z
+  
+_norm_pdf_C = np.sqrt(2. * np.pi)
+_norm_pdf_logC = np.log(_norm_pdf_C)
+def norm_logpdf(x, loc=0., scale=1.):
+    y = (x - loc) / scale
+    return -y**2 / 2.0 - _norm_pdf_logC
+  
+def t_logpdf(x, df, loc=0., scale=1.):
+    r = df * 1.
+    y = (x - loc) / scale
+    lPx = scipy.special.gammaln((r + 1) / 2) - scipy.special.gammaln(r / 2)
+    lPx -= 0.5 * np.log(r * np.pi) + (r + 1) / 2 * np.log(1 + y**2 / r)
+    return lPx
+  
 def t_logpdf_jax(x, df, loc=0., scale=1.):
     r = df * 1.
     y = (x - loc) / scale
@@ -94,6 +132,13 @@ def t_logpdf_jax(x, df, loc=0., scale=1.):
 t_logpdf_jax_jit = jax.jit(t_logpdf_jax)
   
 eps_beta_logpdf = 1E-3
+def beta_logpdf(x, a, b, scale=1.):
+    # up to factor independent of x
+    x_bnd = np.minimum(scale - eps_beta_logpdf, np.maximum(eps_beta_logpdf, x)) / scale
+    lPx = scipy.special.xlog1py(b - 1.0, -x_bnd) + scipy.special.xlogy(a - 1.0, x_bnd)
+#     lPx -= scipy.special.betaln(a, b) + np.log(scale)
+    return lPx
+
 def beta_logpdf_jax(x, a, b, scale=1.):
     # up to factor independent of x
     x_bnd = jnp.minimum(scale - eps_beta_logpdf, jnp.maximum(eps_beta_logpdf, x)) / scale
@@ -101,6 +146,13 @@ def beta_logpdf_jax(x, a, b, scale=1.):
     return lPx
 beta_logpdf_jax_jit = jax.jit(beta_logpdf_jax)
 
+def dirichlet_hypercube_logp(alpha, z):
+#    # up to factor involving Gammas independent of z
+#    alpha_tilde = np.sum(alpha) - np.cumsum(alpha)
+#    return np.sum(beta_logpdf_jax_jit(z, a=alpha_tilde[:-1], b=alpha[:-1]))
+    x = to_simplex(z)
+    return scipy.stats.dirichlet(alpha).logpdf(x) if np.all(x > 0) else -np.inf
+  
 #===============================================================================
 # discrete priors
 #===============================================================================
@@ -120,6 +172,8 @@ def generate_label_ordered_product_states_and_log_prior(discrete_prior_config):
     copy_number_event_prior_penalty = discrete_prior_config.copy_number_event_prior_penalty
     allelic_copy_number_change_prior_penalty = discrete_prior_config.allelic_copy_number_change_prior_penalty
     hom_del_prior_penalty = discrete_prior_config.hom_del_prior_penalty
+
+    num_allelic_copy_number_states = len(allelic_copy_number_states)
 
     # number of unordered product states = num_allelic_copy_number_states^(num_overlapping_populations * num_alleles)
     # each product state is num_overlapping_populations x num_alleles matrix of allelic copy number
@@ -161,6 +215,16 @@ def generate_label_ordered_product_states_and_log_prior(discrete_prior_config):
                                       np.sum(np.abs(label_ordered_allelic_copy_number_product_states_lij[:, 1, :] - label_ordered_allelic_copy_number_product_states_lij[:, 2, :]), axis=-1)])).transpose()
     unnorm_label_ordered_product_state_prior_li *= (1. - allelic_copy_number_change_prior_penalty)**delta_copy_number_li
     
+    # remove states where clonal and subclonal populations have identical event (clonal states should be indicated by a zero subclonal cancer cell fraction with a normal subclone)
+#    unnorm_label_ordered_product_state_prior_li[(np.all(label_ordered_allelic_copy_number_product_states_lij[:, 1, :] == label_ordered_allelic_copy_number_product_states_lij[:, 2, :], axis=1)) * 
+#                                                (np.any(label_ordered_allelic_copy_number_product_states_lij[:, 1, :] != normal_allelic_copy_number_state, axis=1))] = 0.
+
+#    # remove unphysical states where normal (clonal) deletions are reverted in clonal/subclonal (subclonal) population (except for clonal states)
+#    unnorm_label_ordered_product_state_prior_li[np.any((label_ordered_allelic_copy_number_product_states_lij[:, 0, :] == 0) * (label_ordered_allelic_copy_number_product_states_lij[:, 1, :] != 0), axis=1)] = 0.
+#    unnorm_label_ordered_product_state_prior_li[np.any((label_ordered_allelic_copy_number_product_states_lij[:, 0, :] == 0) * (label_ordered_allelic_copy_number_product_states_lij[:, 2, :] != 0), axis=1)] = 0.
+#    unnorm_label_ordered_product_state_prior_li[np.any((label_ordered_allelic_copy_number_product_states_lij[:, 1, :] == 0) * (label_ordered_allelic_copy_number_product_states_lij[:, 2, :] != 0), axis=1) * 
+#                                                np.any(label_ordered_allelic_copy_number_product_states_lij[:, 2, :] != normal_allelic_copy_number_state, axis=1)] = 0.
+
     # remove unphysical states where normal (clonal) deletions are reverted in clonal/subclonal (subclonal) population
     unnorm_label_ordered_product_state_prior_li[np.any((label_ordered_allelic_copy_number_product_states_lij[:, 0, :] == 0) * (label_ordered_allelic_copy_number_product_states_lij[:, 1, :] != 0), axis=1)] = 0.
     unnorm_label_ordered_product_state_prior_li[np.any((label_ordered_allelic_copy_number_product_states_lij[:, 0, :] == 0) * (label_ordered_allelic_copy_number_product_states_lij[:, 2, :] != 0), axis=1)] = 0.
@@ -208,9 +272,12 @@ def prepare_data_and_discrete_prior(modeled_segments, global_discrete_prior, dis
     data_k = np.array([[fit_t_to_log2cr(modeled_segment, likelihood_config.t_degrees_of_freedom), fit_beta_to_maf(modeled_segment), 
                         modeled_segment['NUM_POINTS_COPY_RATIO'], modeled_segment['NUM_POINTS_ALLELE_FRACTION'], modeled_segment['END'] - modeled_segment['START'] + 1] 
                        for _, modeled_segment in modeled_segments.iterrows()])
-
+    
     obs_log2cr_mu_sigma_k = np.vstack(data_k[:, 0])
+    obs_log2cr_k = obs_log2cr_mu_sigma_k[:, 0]
+
     obs_maf_a_b_k = np.vstack(data_k[:, 1])
+    obs_maf_k = np.array(list(map(lambda x: min([max([0.5 * (x[0] - 1) / (x[0] + x[1] - 2), 0.]), 0.5]), obs_maf_a_b_k)))
     
     length_k = data_k[:, 4].astype(int)
     end_k = np.cumsum(length_k) / np.sum(length_k)
@@ -243,11 +310,190 @@ def prepare_data_and_discrete_prior(modeled_segments, global_discrete_prior, dis
     return data, discrete_prior
   
 #===============================================================================
-# model/inference (vectorized methods)
+# model
 #===============================================================================
 
 eps_model = 1E-10
 
+Parameters = namedtuple('Parameters', ['subclonal_cancer_cell_fraction_s',
+                                       'purity',
+                                       'cr_norm'])
+def parameters_array_to_tuple(parameters_array):
+    return Parameters(
+        subclonal_cancer_cell_fraction_s = parameters_array[:-2], 
+        purity = parameters_array[-2], 
+        cr_norm = parameters_array[-1])
+        
+TransformedParameters = namedtuple('TransformedParameters', ['transformed_subclonal_cancer_cell_fraction_s',
+                                                             'purity',
+                                                             'cr_norm'])
+def transformed_parameters_array_to_tuple(transformed_parameters_array):
+    return TransformedParameters(
+        transformed_subclonal_cancer_cell_fraction_s = transformed_parameters_array[:-2], 
+        purity = transformed_parameters_array[-2], 
+        cr_norm = transformed_parameters_array[-1])
+  
+def calculate_log2cr_maf_sl(parameters, data, use_marginalization_states):
+    num_subclonal_populations = len(parameters.subclonal_cancer_cell_fraction_s)
+    allelic_copy_number_product_states_lij = data.marginalization_allelic_copy_number_product_states_lij if use_marginalization_states else data.allelic_copy_number_product_states_lij
+    # s = subclonal population, l = product state, j = allele
+    overlapping_population_fraction_is = np.array([(1. - parameters.purity) * np.ones(num_subclonal_populations), 
+                                                   parameters.purity * (1. - parameters.subclonal_cancer_cell_fraction_s),
+                                                   parameters.purity * parameters.subclonal_cancer_cell_fraction_s])
+    population_weighted_copy_number_slj = np.einsum('is,lij->slj', overlapping_population_fraction_is, allelic_copy_number_product_states_lij)
+    total_cr_sl = np.sum(population_weighted_copy_number_slj, axis=-1)
+    log2cr_sl = np.log2(total_cr_sl / (parameters.cr_norm + eps_model) + eps_cr)
+    maf_sl = np.min(population_weighted_copy_number_slj, axis=-1) / (total_cr_sl + eps_model)
+    return log2cr_sl, maf_sl
+  
+def calculate_likelihood_logp_ksl(parameters, data, use_marginalization_states):
+    log2cr_sl, maf_sl = calculate_log2cr_maf_sl(parameters, data, use_marginalization_states)
+    
+    likelihood_log2cr_logp_slk = data.obs_log2cr_logp_k(log2cr_sl[:, :, np.newaxis])
+    likelihood_maf_logp_slk = data.obs_maf_logp_k(maf_sl[:, :, np.newaxis])
+    likelihood_maf_logp_slk = np.array(likelihood_maf_logp_slk) # cannot use index assignment with jax
+    likelihood_maf_logp_slk[:, :, data.is_maf_nan_k] = 0.
+    
+    likelihood_logp_slk = likelihood_log2cr_logp_slk + likelihood_maf_logp_slk
+    likelihood_logp_ksl = np.transpose(likelihood_logp_slk, axes=(2, 0, 1))
+    
+    return likelihood_logp_ksl
+  
+def prior_logp(prior, transformed_parameters):
+    logp = 0.
+    logp += prior.continuous_prior.subclonal_cancer_cell_fraction_dirichlet_hypercube_logp(transformed_parameters.transformed_subclonal_cancer_cell_fraction_s)
+    logp += prior.continuous_prior.purity_beta.logpdf(transformed_parameters.purity)
+    logp += prior.continuous_prior.cr_norm_lognorm.logpdf(transformed_parameters.cr_norm)
+    return logp
+  
+def logp(transformed_parameters_array, prior, data):
+    transformed_parameters = transformed_parameters_array_to_tuple(transformed_parameters_array)
+    
+    if np.any(transformed_parameters.transformed_subclonal_cancer_cell_fraction_s < 0) or \
+          np.any(transformed_parameters.transformed_subclonal_cancer_cell_fraction_s > 1) or \
+          not 0 <= transformed_parameters.purity <= 1 or \
+          transformed_parameters.cr_norm < 0:
+        return -np.inf
+      
+    subclonal_cancer_cell_fraction_s = to_simplex(transformed_parameters.transformed_subclonal_cancer_cell_fraction_s)
+    
+    # enforce CCF sorting
+    if not np.all(np.diff(subclonal_cancer_cell_fraction_s) <= 0):
+        return -np.inf
+      
+    logp = 0.
+    
+    # prior
+    logp += prior_logp(prior, transformed_parameters)
+    if logp == -np.inf:
+        return logp
+      
+    parameters = Parameters(
+        subclonal_cancer_cell_fraction_s = subclonal_cancer_cell_fraction_s,
+        purity = transformed_parameters.purity,
+        cr_norm = transformed_parameters.cr_norm)
+    
+    # likelihood
+    likelihood_logp_ksl = calculate_likelihood_logp_ksl(parameters, data, use_marginalization_states=True)
+    
+    # marginalize over subclonal population assignments and marginalization product states
+    logp_ksl = prior.discrete_prior.marginalization_product_state_log_prior_kl[:, np.newaxis, :] + likelihood_logp_ksl
+    logp += jnp.sum(jax.scipy.special.logsumexp(logp_ksl, axis=(-2, -1)))
+    
+    # L2 prior on equivalence between MAP ploidy and cr_norm
+    flat_argmax_idx = np.argmax(np.reshape(logp_ksl, (logp_ksl.shape[0], -1)), axis=-1)
+    map_s_k, map_l_k = np.unravel_index(flat_argmax_idx, logp_ksl.shape[-2:])
+    map_copy_number_ijk = np.transpose(data.marginalization_allelic_copy_number_product_states_lij[map_l_k], axes=(1, 2, 0))
+    map_z_sk = map_s_k
+    subclonal_cancer_cell_fraction_k = parameters.subclonal_cancer_cell_fraction_s[map_z_sk]
+    overlapping_population_fraction_ik = np.array([(1. - parameters.purity) * np.ones(len(map_z_sk)), 
+                                                   parameters.purity * (1. - subclonal_cancer_cell_fraction_k),
+                                                   parameters.purity * subclonal_cancer_cell_fraction_k])
+    population_weighted_copy_number_jk = np.einsum('ik,ijk->jk', overlapping_population_fraction_ik, map_copy_number_ijk)
+    total_cr_k = np.sum(population_weighted_copy_number_jk, axis=0)
+    ploidy = np.sum(total_cr_k * data.length_k) / np.sum(data.length_k)
+    logp += prior.continuous_prior.cr_norm_constraint_norm.logpdf(parameters.cr_norm - ploidy)
+    
+    return logp
+  
+DiscreteParameters = namedtuple('DiscreteParameters', ['copy_number_ijk',
+                                                       'z_sk'])
+def calculate_map_discrete_parameters(parameters, discrete_prior, data, use_marginalization_states):
+    subclonal_cancer_cell_fraction_s, purity, cr_norm = parameters
+    allelic_copy_number_product_states_lij = data.marginalization_allelic_copy_number_product_states_lij if use_marginalization_states else data.allelic_copy_number_product_states_lij
+    product_state_log_prior_kl = discrete_prior.marginalization_product_state_log_prior_kl if use_marginalization_states else discrete_prior.product_state_log_prior_kl
+    
+    likelihood_logp_ksl = calculate_likelihood_logp_ksl(parameters, data, use_marginalization_states)
+    logp_ksl = product_state_log_prior_kl[:, np.newaxis, :] + likelihood_logp_ksl
+    
+    flat_argmax_idx = np.argmax(np.reshape(logp_ksl, (logp_ksl.shape[0], -1)), axis=-1)
+    map_s_k, map_l_k = np.unravel_index(flat_argmax_idx, logp_ksl.shape[-2:])
+    
+    map_copy_number_ijk = np.transpose(allelic_copy_number_product_states_lij[map_l_k], axes=(1, 2, 0))
+    map_z_sk = map_s_k
+    
+    return DiscreteParameters(map_copy_number_ijk, map_z_sk)
+    
+def calculate_tumor_ploidy(parameters, discrete_parameters, data):
+    subclonal_cancer_cell_fraction_k = parameters.subclonal_cancer_cell_fraction_s[discrete_parameters.z_sk]
+    tumor_overlapping_population_fraction_ik = np.array([1. - subclonal_cancer_cell_fraction_k,
+                                                         subclonal_cancer_cell_fraction_k])
+    tumor_population_weighted_copy_number_jk = np.einsum('ik,ijk->jk', tumor_overlapping_population_fraction_ik, discrete_parameters.copy_number_ijk[1:])
+    tumor_cr_k = np.sum(tumor_population_weighted_copy_number_jk, axis=0)
+    tumor_ploidy = np.sum(tumor_cr_k * data.length_k) / np.sum(data.length_k)
+    return tumor_ploidy
+  
+#===============================================================================
+# inference
+#===============================================================================
+  
+def run_mcmc(inference_config, prior, data, logp):
+    num_parameters, num_walkers, num_burn_in, num_samples, emcee_move = inference_config
+    np.random.seed(0)
+    
+    # initialize walkers
+    ensemble_position = np.random.rand(num_walkers, num_parameters)
+    ensemble_position[:, -2] = prior.continuous_prior.purity_beta.rvs(num_walkers)
+    ensemble_position[:, -1] = prior.continuous_prior.cr_norm_lognorm.rvs(num_walkers)
+        
+    # enforce CCF sorting
+    for w, walker_position in enumerate(ensemble_position):
+        transformed_subclonal_cancer_cell_fraction_s = walker_position[:-2]
+        subclonal_cancer_cell_fraction_s = to_simplex(transformed_subclonal_cancer_cell_fraction_s)
+        if not np.all(np.diff(subclonal_cancer_cell_fraction_s) <= 0):
+            sorted_subclonal_cancer_cell_fraction_s = np.sort(subclonal_cancer_cell_fraction_s)[::-1]
+            ensemble_position[w, :-2] = to_hypercube(sorted_subclonal_cancer_cell_fraction_s)
+
+#     with Pool() as pool:
+#           sampler = emcee.EnsembleSampler(num_walkers, num_parameters, logp, args=(prior, data), pool=pool, moves=emcee_move)
+    sampler = emcee.EnsembleSampler(num_walkers, num_parameters, logp, args=(prior, data), moves=emcee_move)
+    # burn-in sampling
+    for ensemble_position, _, _ in tqdm.tqdm(sampler.sample(ensemble_position, iterations=num_burn_in), total=num_burn_in):
+        pass
+    sampler.reset()
+    # sampling   
+    for ensemble_position, _, _ in tqdm.tqdm(sampler.sample(ensemble_position, iterations=num_samples), total=num_samples):
+        pass
+    
+    acceptance_fraction = np.mean(sampler.acceptance_fraction)
+    print('Acceptance fraction:', acceptance_fraction)
+    
+    transformed_parameter_samples = sampler.get_chain(flat=True)
+    logp_samples = sampler.get_log_prob(flat=True)
+    
+    # postprocess samples
+    subclonal_cancer_cell_fraction_s_samples = np.apply_along_axis(to_simplex, 1, transformed_parameter_samples[:, :-2])
+    subclonal_cancer_cell_fraction_s_samples = np.sort(subclonal_cancer_cell_fraction_s_samples, axis=1)[:, ::-1]
+    purity_samples = transformed_parameter_samples[:, -2][:, np.newaxis]
+    cr_norm_samples = transformed_parameter_samples[:, -1][:, np.newaxis]
+    parameter_samples = np.hstack([subclonal_cancer_cell_fraction_s_samples, purity_samples, cr_norm_samples])
+    
+    return sampler, parameter_samples, logp_samples
+  
+#===============================================================================
+# vectorized methods
+#===============================================================================
+  
 # we use p to index parameters and P to index non-transformed parameters
 
 @numba.jit(nopython=True)
@@ -274,7 +520,15 @@ def to_hypercube_w(x_wp):
         cum_prod_w *= z_wP[:, k - 1]
         z_wP[:, k] = 1. - x_wp[:, k] / cum_prod_w
     return z_wP
-
+  
+def dirichlet_hypercube_logp_w(alpha, z_wP):
+#    # up to factor involving Gammas independent of z_wP
+#    alpha_tilde = np.sum(alpha) - np.cumsum(alpha)
+#    return np.sum(beta_logpdf_jax_jit(z_wP, a=alpha_tilde[:-1], b=alpha[:-1]), axis=1)
+    x_wp = to_simplex_w(z_wP)
+    dirichlet = scipy.stats.dirichlet(alpha)
+    return np.array([dirichlet.logpdf(x_p) if np.all(x_p > 0) else -np.inf for x_p in x_wp])
+  
 def calculate_log2cr_maf_wsl(ensemble_wp, data, use_marginalization_states):
     num_walkers, num_parameters = np.shape(ensemble_wp)
     num_subclonal_populations = num_parameters - 2
@@ -291,7 +545,7 @@ def calculate_log2cr_maf_wsl(ensemble_wp, data, use_marginalization_states):
     log2cr_wsl = np.log2(total_cr_wsl / (cr_norm_w[:, np.newaxis, np.newaxis] + eps_model) + eps_cr)
     maf_wsl = np.min(population_weighted_copy_number_wslj, axis=-1) / (total_cr_wsl + eps_model)
     return log2cr_wsl, maf_wsl
-
+  
 def calculate_likelihood_logp_wksl(ensemble_wp, data, use_marginalization_states):
     log2cr_wsl, maf_wsl = calculate_log2cr_maf_wsl(ensemble_wp, data, use_marginalization_states)
     
@@ -304,13 +558,13 @@ def calculate_likelihood_logp_wksl(ensemble_wp, data, use_marginalization_states
     likelihood_logp_wksl = np.transpose(likelihood_logp_wslk, axes=(0, 3, 1, 2))
     
     return likelihood_logp_wksl
-
-def prior_logp_w(prior, ensemble_wp):
-    num_walkers, _ = np.shape(ensemble_wp)
+  
+def prior_logp_w(prior, transformed_ensemble_wP):
+    num_walkers, _ = np.shape(transformed_ensemble_wP)
     logp_w = np.zeros(num_walkers)
-    logp_w += prior.continuous_prior.subclonal_cancer_cell_fraction_dirichlet.logpdf(ensemble_wp[:, :-2].transpose())
-    logp_w += prior.continuous_prior.purity_beta.logpdf(ensemble_wp[:, -2])
-    logp_w += prior.continuous_prior.cr_norm_lognorm.logpdf(ensemble_wp[:, -1])
+    logp_w += prior.continuous_prior.subclonal_cancer_cell_fraction_dirichlet_hypercube_logp(transformed_ensemble_wP[:, :-2])
+    logp_w += prior.continuous_prior.purity_beta.logpdf(transformed_ensemble_wP[:, -2])
+    logp_w += prior.continuous_prior.cr_norm_lognorm.logpdf(transformed_ensemble_wP[:, -1])
     return logp_w
   
 def logp_w(transformed_ensemble_wP, prior, data, tumor_ploidy_samples=[]):
@@ -324,26 +578,22 @@ def logp_w(transformed_ensemble_wP, prior, data, tumor_ploidy_samples=[]):
     subclonal_cancer_cell_fraction_ws = to_simplex_w(transformed_ensemble_wP[:, :-2])
     
     # enforce CCF sorting
-#    is_subclonal_cancer_cell_fraction_sorted_w = np.all(np.diff(subclonal_cancer_cell_fraction_ws, axis=1) <= 0, axis=1)
-    subclonal_cancer_cell_fraction_ws = np.sort(subclonal_cancer_cell_fraction_ws, axis=-1)[:, ::-1]
+    is_subclonal_cancer_cell_fraction_sorted_w = np.all(np.diff(subclonal_cancer_cell_fraction_ws, axis=1) <= 0, axis=1)
     
-    is_allowed_w = is_in_transformed_boundary_w #& is_subclonal_cancer_cell_fraction_sorted_w
-    
-    ensemble_wp = np.zeros((num_walkers, num_parameters))
-    ensemble_wp[:, :-2] = subclonal_cancer_cell_fraction_ws
-    ensemble_wp[:, -2] = transformed_ensemble_wP[:, -2]
-    ensemble_wp[:, -1] = transformed_ensemble_wP[:, -1]
-    # modify CCFs of disallowed walkers to ensure valid arguments for scipy.stats.dirichlet.logpdf
-    ensemble_wp[~is_allowed_w, :-2] = eps_model
-    ensemble_wp[~is_allowed_w, 0] = 1.
+    is_allowed_w = is_in_transformed_boundary_w & is_subclonal_cancer_cell_fraction_sorted_w
     
     # prior
     logp_w = np.choose(is_allowed_w, [-np.inf, 0.])
-    logp_w += prior_logp_w(prior, ensemble_wp)
+    logp_w += prior_logp_w(prior, transformed_ensemble_wP)
 
     if np.all(logp_w == -np.inf):
         return logp_w
       
+    ensemble_wp = np.zeros((num_walkers, num_parameters))
+    ensemble_wp[:, :-2] = subclonal_cancer_cell_fraction_ws
+    ensemble_wp[:, -2] = transformed_ensemble_wP[:, -2]
+    ensemble_wp[:, -1] = transformed_ensemble_wP[:, -1]
+    
     # likelihood
     likelihood_logp_wksl = calculate_likelihood_logp_wksl(ensemble_wp * is_allowed_w[:, np.newaxis], data, use_marginalization_states=True)
     
@@ -370,11 +620,13 @@ def logp_w(transformed_ensemble_wP, prior, data, tumor_ploidy_samples=[]):
     tumor_ploidy_wj = np.einsum('wjk,k->wj', (1. - subclonal_cancer_cell_fraction_wk[:, np.newaxis, :]) * map_copy_number_wijk[:, 1, :, :]
                                                  + subclonal_cancer_cell_fraction_wk[:, np.newaxis, :] * map_copy_number_wijk[:, 2, :, :], 
                                 data.length_k) / np.sum(data.length_k)
+#    logp_w += np.sum(scipy.stats.lognorm(s=0.1, scale=1.).logpdf(tumor_ploidy_wj), axis=-1)
+#    logp_w += scipy.stats.lognorm(s=np.maximum(0.1 * ensemble_wp[:, -2], 0.01), scale=2.).logpdf(tumor_ploidy_w)
     tumor_ploidy_samples.extend(np.sum(tumor_ploidy_wj, axis=-1))
     
     return logp_w
-    
-def run_mcmc_vectorized(inference_config, prior, data, logp_w):
+  
+def run_mcmc_vectorized(inference_config, prior, data, logp):
     num_parameters, num_walkers, num_burn_in, num_samples, emcee_move = inference_config
     np.random.seed(0)
     tumor_ploidy_samples = []
@@ -385,18 +637,21 @@ def run_mcmc_vectorized(inference_config, prior, data, logp_w):
     transformed_ensemble_wP[:, -1] = prior.continuous_prior.cr_norm_lognorm.rvs(num_walkers)
         
     # enforce CCF sorting
-    subclonal_cancer_cell_fraction_ws = to_simplex_w(transformed_ensemble_wP[:, :-2])
-    sorted_subclonal_cancer_cell_fraction_ws = np.sort(subclonal_cancer_cell_fraction_ws, axis=-1)[:, ::-1]
-    transformed_ensemble_wP[:, :-2] = to_hypercube_w(sorted_subclonal_cancer_cell_fraction_ws)
+    for w, transformed_walker_P in enumerate(transformed_ensemble_wP):
+        transformed_subclonal_cancer_cell_fraction_s = transformed_walker_P[:-2]
+        subclonal_cancer_cell_fraction_s = to_simplex(transformed_subclonal_cancer_cell_fraction_s)
+        if not np.all(np.diff(subclonal_cancer_cell_fraction_s) <= 0):
+            sorted_subclonal_cancer_cell_fraction_s = np.sort(subclonal_cancer_cell_fraction_s)[::-1]
+            transformed_ensemble_wP[w, :-2] = to_hypercube(sorted_subclonal_cancer_cell_fraction_s)
 
     sampler = emcee.EnsembleSampler(num_walkers, num_parameters, logp_w, args=(prior, data, tumor_ploidy_samples), moves=emcee_move, vectorize=True)
     # burn-in sampling
-    for _, _, _ in tqdm.tqdm(sampler.sample(transformed_ensemble_wP, iterations=num_burn_in), total=num_burn_in):
+    for transformed_walker_P, _, _ in tqdm.tqdm(sampler.sample(transformed_ensemble_wP, iterations=num_burn_in), total=num_burn_in):
         pass
     sampler.reset()
     tumor_ploidy_samples.clear()
     # sampling
-    for _, _, _ in tqdm.tqdm(sampler.sample(transformed_ensemble_wP, iterations=num_samples), total=num_samples):
+    for transformed_walker_P, _, _ in tqdm.tqdm(sampler.sample(transformed_ensemble_wP, iterations=num_samples), total=num_samples):
         pass
     
     acceptance_fraction = np.mean(sampler.acceptance_fraction)
@@ -406,7 +661,7 @@ def run_mcmc_vectorized(inference_config, prior, data, logp_w):
     logp_samples = sampler.get_log_prob(flat=True)
     
     # postprocess samples
-    subclonal_cancer_cell_fraction_s_samples = to_simplex_w(transformed_parameter_samples[:, :-2])
+    subclonal_cancer_cell_fraction_s_samples = np.apply_along_axis(to_simplex, 1, transformed_parameter_samples[:, :-2])
     subclonal_cancer_cell_fraction_s_samples = np.sort(subclonal_cancer_cell_fraction_s_samples, axis=1)[:, ::-1]
     purity_samples = transformed_parameter_samples[:, -2][:, np.newaxis]
     cr_norm_samples = transformed_parameter_samples[:, -1][:, np.newaxis]
@@ -414,34 +669,51 @@ def run_mcmc_vectorized(inference_config, prior, data, logp_w):
     tumor_ploidy_samples = np.array(tumor_ploidy_samples[num_walkers:]) # remove initial ensemble sample
     
     return sampler, parameter_samples, logp_samples, tumor_ploidy_samples
-    
-Parameters = namedtuple('Parameters', ['subclonal_cancer_cell_fraction_s',
-                                       'purity',
-                                       'cr_norm'])
-    
-DiscreteParameters = namedtuple('DiscreteParameters', ['copy_number_ijk',
-                                                       'z_sk'])
-def calculate_map_discrete_parameters(parameters, discrete_prior, data, use_marginalization_states):
-    subclonal_cancer_cell_fraction_s, purity, cr_norm = parameters
-    allelic_copy_number_product_states_lij = data.marginalization_allelic_copy_number_product_states_lij if use_marginalization_states else data.allelic_copy_number_product_states_lij
-    product_state_log_prior_kl = discrete_prior.marginalization_product_state_log_prior_kl if use_marginalization_states else discrete_prior.product_state_log_prior_kl
-    
-    ensemble_wp = np.array([list(subclonal_cancer_cell_fraction_s) + [purity] + [cr_norm]])
-    likelihood_logp_ksl = calculate_likelihood_logp_wksl(ensemble_wp, data, use_marginalization_states)[0]
-    logp_ksl = product_state_log_prior_kl[:, np.newaxis, :] + likelihood_logp_ksl
-    
-    flat_argmax_idx = np.argmax(np.reshape(logp_ksl, (logp_ksl.shape[0], -1)), axis=-1)
-    map_s_k, map_l_k = np.unravel_index(flat_argmax_idx, logp_ksl.shape[-2:])
-    
-    map_copy_number_ijk = np.transpose(allelic_copy_number_product_states_lij[map_l_k], axes=(1, 2, 0))
-    map_z_sk = map_s_k
-    
-    return DiscreteParameters(map_copy_number_ijk, map_z_sk)
 
 #===============================================================================
 # plotting
 #===============================================================================
 
+def plot_cr_maf_posteriors(modeled_segments, output_path, output_prefix, show=True):
+    length_k = modeled_segments['END'].values - modeled_segments['START'].values + 1
+    alpha_k = np.log10(length_k) / np.log10(np.max(length_k))
+    colors_rgba = [np.array(matplotlib.colors.to_rgba(c)) for c in ['r', 'grey']]
+    facecolor_k = np.take(colors_rgba, np.isnan(modeled_segments['MINOR_ALLELE_FRACTION_POSTERIOR_50']), axis=0)
+    facecolor_k[:, 3] *= alpha_k
+    
+#     log2cr_min = np.floor(np.min(modeled_segments['LOG2_COPY_RATIO_POSTERIOR_10']))
+    cr_min = 0.
+    log2cr_max = np.ceil(np.max(modeled_segments['LOG2_COPY_RATIO_POSTERIOR_90']))
+    maf_min = 0.
+    maf_max = 0.5
+    
+    fig, ax = plt.subplots(1, figsize=(10, 5))
+    
+    def make_rectangle(modeled_segment):
+        cr_10 = 2**modeled_segment['LOG2_COPY_RATIO_POSTERIOR_10']
+        cr_90 = 2**modeled_segment['LOG2_COPY_RATIO_POSTERIOR_90']
+        maf_10 = modeled_segment['MINOR_ALLELE_FRACTION_POSTERIOR_10']        
+        maf_90 = modeled_segment['MINOR_ALLELE_FRACTION_POSTERIOR_90']        
+        maf_10 = maf_min if np.isnan(maf_10) else maf_10
+        maf_90 = maf_max if np.isnan(maf_90) else maf_90
+        return Rectangle([cr_10, maf_10], cr_90 - cr_10, maf_90 - maf_10)
+    
+    rectangles = PatchCollection([make_rectangle(modeled_segment) for _, modeled_segment in modeled_segments.iterrows()],
+                                 facecolor=facecolor_k,
+                                 edgecolor='k')
+    ax.add_collection(rectangles)
+
+    plt.xlabel('copy ratio')
+    plt.ylabel('minor-allele fraction')
+    plt.xlim([cr_min, log2cr_max])
+    plt.ylim([maf_min, maf_max])
+    plt.suptitle(output_prefix)
+    plt.tight_layout(rect=[0.02, 0.02, 0.98, 0.95])
+    plt.savefig(os.path.join(output_path, output_prefix + '.scatter.png'))
+    if show:
+        plt.show()
+    plt.close()
+    
 def plot_corner(parameter_samples, output_path, output_prefix, show=True):
     num_subclonal_populations = parameter_samples.shape[1] - 2
 
@@ -599,10 +871,6 @@ def plot_fit(parameters, discrete_parameters, data, modeled_segments, output_pat
         plt.show()    
     plt.close()
     
-#===============================================================================
-# configs
-#===============================================================================
-    
 # num_overlapping_populations and num_alleles are essentially fixed, due to assumptions made in discrete prior
 DiscretePriorConfig = namedtuple('DiscretePriorConfig', ['num_overlapping_populations',
                                                          'num_alleles',
@@ -637,20 +905,23 @@ ContinuousPriorConfig = namedtuple('ContinuousPriorConfig', ['num_subclonal_popu
                                                              'cr_norm_constraint_scale'])
 continuous_prior_config = ContinuousPriorConfig(
     num_subclonal_populations = 4,
-    subclonal_cancer_cell_fraction_alpha = 10.,
+    subclonal_cancer_cell_fraction_alpha = 1E-3,
     purity_a = 1.,
     purity_b = 10.,
     cr_norm_s = 0.1,
     cr_norm_scale = 2.,
     cr_norm_constraint_scale = np.sqrt(1E-3))
 
-ContinuousPrior = namedtuple('ContinuousPrior', ['subclonal_cancer_cell_fraction_dirichlet',
+ContinuousPrior = namedtuple('ContinuousPrior', ['subclonal_cancer_cell_fraction_dirichlet_hypercube_logp',
                                                  'purity_beta',
                                                  'cr_norm_lognorm',
                                                  'cr_norm_constraint_norm'])
+
 continuous_prior = ContinuousPrior(
-    subclonal_cancer_cell_fraction_dirichlet = scipy.stats.dirichlet(
-        alpha=continuous_prior_config.subclonal_cancer_cell_fraction_alpha * np.ones(continuous_prior_config.num_subclonal_populations)),
+    subclonal_cancer_cell_fraction_dirichlet_hypercube_logp = \
+      lambda transformed_subclonal_cancer_cell_fraction_s: dirichlet_hypercube_logp(
+        continuous_prior_config.subclonal_cancer_cell_fraction_alpha * np.ones(continuous_prior_config.num_subclonal_populations), 
+        transformed_subclonal_cancer_cell_fraction_s),
     purity_beta = scipy.stats.beta(
         a=continuous_prior_config.purity_a, 
         b=continuous_prior_config.purity_b),
@@ -687,19 +958,39 @@ GlobalConfig = namedtuple('GlobalConfig', ['discrete_prior_config',
                                            'continuous_prior',
                                            'likelihood_config',
                                            'inference_config'])
+
 global_config = GlobalConfig(
     discrete_prior_config = discrete_prior_config,
     global_discrete_prior = global_discrete_prior,
-    likelihood_config = likelihood_config,
     continuous_prior = continuous_prior,
+    likelihood_config = likelihood_config,
     inference_config = inference_config
 )
 
-#===============================================================================
-# main
-#===============================================================================
+continuous_prior_vectorized = ContinuousPrior(
+    subclonal_cancer_cell_fraction_dirichlet_hypercube_logp = \
+      lambda transformed_subclonal_cancer_cell_fraction_ws: dirichlet_hypercube_logp_w(
+        continuous_prior_config.subclonal_cancer_cell_fraction_alpha * np.ones(continuous_prior_config.num_subclonal_populations), 
+        transformed_subclonal_cancer_cell_fraction_ws),
+    purity_beta = scipy.stats.beta(
+        a=continuous_prior_config.purity_a, 
+        b=continuous_prior_config.purity_b),
+    cr_norm_lognorm = scipy.stats.lognorm(
+        s=continuous_prior_config.cr_norm_s, 
+        scale=continuous_prior_config.cr_norm_scale),
+    cr_norm_constraint_norm = scipy.stats.norm(
+        scale=continuous_prior_config.cr_norm_constraint_scale))
 
-def run_th(modeled_segments_path, output_prefix, output_path, global_config, show=True):
+
+global_config_vectorized = GlobalConfig(
+    discrete_prior_config = discrete_prior_config,
+    global_discrete_prior = global_discrete_prior,
+    likelihood_config = likelihood_config,
+    continuous_prior = continuous_prior_vectorized,
+    inference_config = inference_config
+)
+
+def run_th(modeled_segments_path, output_prefix, output_path, global_config, vectorize=True, show=True):
     discrete_prior_config, global_discrete_prior, continuous_prior, likelihood_config, inference_config = global_config
   
     # load modeled segments=====================================================
@@ -709,13 +1000,16 @@ def run_th(modeled_segments_path, output_prefix, output_path, global_config, sho
     num_segments = len(modeled_segments)
     print('Number of segments:', num_segments)
     
+    # output CR-MAF posteriors scatter plot=================================
+    plot_cr_maf_posteriors(modeled_segments, output_path, output_prefix, show)
+    
     # fit posteriors and apply segment-length weights to discrete priors========
     data, discrete_prior = prepare_data_and_discrete_prior(modeled_segments, global_discrete_prior, discrete_prior_config, likelihood_config)
     prior = Prior(continuous_prior, discrete_prior)
     
     # perform inference=========================================================
     
-    sampler, parameter_samples, logp_samples, tumor_ploidy_samples = run_mcmc_vectorized(inference_config, prior, data, logp_w)
+    sampler, parameter_samples, logp_samples, tumor_ploidy_samples = run_mcmc_vectorized(inference_config, prior, data, logp_w) if vectorize else run_mcmc(inference_config, prior, data, logp)
     
     # output corner plot========================================================
     
@@ -783,7 +1077,7 @@ def main():
     if not os.path.exists(args.output_path):
         os.mkdir(args.output_path)
 
-    run_th(args.modeled_segments_path, args.output_prefix, args.output_path, global_config, show=False)
+    run_th(args.modeled_segments_path, args.output_prefix, args.output_path, global_config_vectorized, vectorize=True, show=False)
 
 if __name__ == '__main__':
     main()
