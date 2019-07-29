@@ -1,6 +1,7 @@
 {
   "CNVSomaticPanelWorkflow.blacklist_intervals": "gs://gatk-best-practices/somatic-b37/CNV_and_centromere_blacklist.hg19.list",
   "CNVSomaticPanelWorkflow.bin_length": 250,
+  "CNVSomaticPanelWorkflow.do_explicit_gc_correction": "true",
   "CNVSomaticPanelWorkflow.normal_bams": [
     "gs://broad-dsde-methods-test-data/tcga-private-bams/wgs/pcawg_pilot/TCGA-KO-8416-11A-01D-2311-10_wgs_Illumina.bam",
     "gs://broad-dsde-methods-test-data/tcga-private-bams/wgs/pcawg_pilot/143cb9761910d538bdd6adea5e1b8cca.bam",
@@ -66,9 +67,9 @@
     "gs://broad-dsde-methods-test-data/tcga-private-bams/wgs/pcawg_pilot/G23076.TCGA_CV_5443_11A_01D_2268_08.1.bam.bai"
   ],
   "CNVSomaticPanelWorkflow.ref_fasta_dict": "gs://broad-dsde-methods-th/refs/Homo_sapiens_assembly19.dict",
-  "CNVSomaticPanelWorkflow.pon_entity_id": "PoN_4.0_Nov2018_WGS_blacklist",
+  "CNVSomaticPanelWorkflow.pon_entity_id": "PoN_4.1_June062019_WGS_blacklist",
   "CNVSomaticPanelWorkflow.ref_fasta_fai": "gs://broad-dsde-methods-th/refs/Homo_sapiens_assembly19.fasta.fai",
-  "CNVSomaticPanelWorkflow.gatk_docker": "us.gcr.io/broad-gatk/gatk:4.0.11.0",
+  "CNVSomaticPanelWorkflow.gatk_docker": "us.gcr.io/broad-gatk/gatk:4.1.2.0",
   "CNVSomaticPanelWorkflow.ref_fasta": "gs://broad-dsde-methods-th/refs/Homo_sapiens_assembly19.fasta",
   "CNVSomaticPanelWorkflow.CreateReadCountPanelOfNormals.mem": "63",
   "CNVSomaticPanelWorkflow.mem_gb_for_create_read_count_pon": "63",
