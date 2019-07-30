@@ -190,7 +190,8 @@ def generate_label_ordered_product_states_and_log_prior(discrete_prior_config):
         marginalization_product_state_log_prior_l = marginalization_product_state_log_prior_l,
         marginalization_product_state_filter_l = marginalization_product_state_filter_l)
   
-Data = namedtuple('Data', ['obs_log2cr_logp_k',
+Data = namedtuple('Data', ['modeled_segments',
+                           'obs_log2cr_logp_k',
                            'obs_maf_logp_k',
                            'num_points_cr_k',
                            'num_points_maf_k',
@@ -224,6 +225,7 @@ def prepare_data_and_discrete_prior(modeled_segments, global_discrete_prior, dis
     marginalization_product_state_log_prior_kl = product_state_log_prior_kl[:, global_discrete_prior.marginalization_product_state_filter_l]
     
     data = Data(
+        modeled_segments = modeled_segments,
         obs_log2cr_logp_k = lambda x_k: t_logpdf_jax_jit(x_k, df=likelihood_config.t_degrees_of_freedom, loc=obs_log2cr_mu_sigma_k[:, 0], scale=obs_log2cr_mu_sigma_k[:, 1]),
         obs_maf_logp_k = lambda x_k: beta_logpdf_jax_jit(x_k, a=obs_maf_a_b_k[:, 0], b=obs_maf_a_b_k[:, 1], scale=0.5),
         num_points_cr_k = data_k[:, 2].astype(int),
@@ -450,27 +452,92 @@ def plot_corner(parameter_samples, output_path, output_prefix, show=True):
                         quantiles=[0.1, 0.5, 0.9], show_titles=True)
     plt.suptitle(output_prefix)
     plt.tight_layout(rect=[0.02, 0.02, 0.98, 0.95])
-    plt.savefig(os.path.join(output_path, output_prefix + '.corner.png'))
+    plt.savefig(os.path.join(output_path, output_prefix + '.th.corner.png'))
     if show:
         plt.show()
     plt.close()
     
 def big_end(data, k, min_length=0.005):
     return max(data.end_k[k], data.start_k[k] + min_length)
+
+def plot_fit(axs, parameters, discrete_parameters, data):
+    def make_cr_rectangle(data, k):
+        start = data.start_k[k]
+        end = big_end(data, k)
+        cr_10 = 2**data.modeled_segments.iloc[k]['LOG2_COPY_RATIO_POSTERIOR_10']
+        cr_90 = 2**data.modeled_segments.iloc[k]['LOG2_COPY_RATIO_POSTERIOR_90']
+        return Rectangle([start, cr_10], end - start, cr_90 - cr_10)
+        
+    def make_maf_rectangle(data, k):
+        start = data.start_k[k]
+        end = big_end(data, k)
+        maf_10 = data.modeled_segments.iloc[k]['MINOR_ALLELE_FRACTION_POSTERIOR_10']
+        maf_90 = data.modeled_segments.iloc[k]['MINOR_ALLELE_FRACTION_POSTERIOR_90']
+        return Rectangle([start, maf_10], end - start, maf_90 - maf_10)
+
+    assert len(axs) == 2
+        
+    subclonal_cancer_cell_fraction_s, purity, cr_norm = parameters
+    copy_number_ijk, z_sk = discrete_parameters
     
-def plot_copy_number_ijk_samples(copy_number_ijk_samples, data, allelic_copy_number_states, output_path, output_prefix, show=True):
+    _, _, num_segments = np.shape(copy_number_ijk)
+    
+    subclonal_cancer_cell_fraction_k = subclonal_cancer_cell_fraction_s[z_sk]
+    overlapping_population_fraction_ik = np.array([(1. - purity) * np.ones(num_segments), 
+                                                   purity * (1. - subclonal_cancer_cell_fraction_k),
+                                                   purity * subclonal_cancer_cell_fraction_k])
+    population_weighted_copy_number_jk = np.einsum('ik,ijk->jk', overlapping_population_fraction_ik, copy_number_ijk)
+    total_cr_k = np.sum(population_weighted_copy_number_jk, axis=0)
+    log2cr_k = np.log2(total_cr_k / (cr_norm + eps_model) + eps_model)
+    maf_k = np.min(population_weighted_copy_number_jk, axis=0) / (total_cr_k + eps_model)
+    
+    axs[0].set_xticks([])
+    axs[1].set_xticks([])
+    axs[0].set_ylim([0, 3])
+    axs[1].set_ylim([0, 0.5])
+    axs[0].set_ylabel('copy ratio')
+    axs[1].set_ylabel('minor-allele fraction')
+    
+    axs[0].vlines(data.end_k[data.is_contig_end_k], 0, 4, color='grey', linestyle='dashed', alpha=0.5)
+    axs[1].vlines(data.end_k[data.is_contig_end_k], 0, 0.5, color='grey', linestyle='dashed', alpha=0.5)
+    
+    pc = PatchCollection([make_cr_rectangle(data, k) for k in range(num_segments)],
+                         color='r', alpha=0.25)
+    axs[0].add_collection(pc)
+    lc = LineCollection([[[data.start_k[k], 2**data.modeled_segments.iloc[k]['LOG2_COPY_RATIO_POSTERIOR_50']], [big_end(data, k), 2**data.modeled_segments.iloc[k]['LOG2_COPY_RATIO_POSTERIOR_50']]] for k in range(num_segments)],
+                        color='r', lw=2, alpha=0.75)
+    axs[0].add_collection(lc)
+    lc = LineCollection([[[data.start_k[k], 2**log2cr_k[k]], [big_end(data, k), 2**log2cr_k[k]]] for k in range(num_segments)],
+                        color='b', lw=2, alpha=0.75)
+    axs[0].add_collection(lc)
+    
+    pc = PatchCollection([make_maf_rectangle(data, k) for k in range(num_segments)],
+                         color='r', alpha=0.25)
+    axs[1].add_collection(pc)
+    lc = LineCollection([[[data.start_k[k], data.modeled_segments.iloc[k]['MINOR_ALLELE_FRACTION_POSTERIOR_50']], [big_end(data, k), data.modeled_segments.iloc[k]['MINOR_ALLELE_FRACTION_POSTERIOR_50']]] for k in range(num_segments)],
+                        color='r', lw=2, alpha=0.75, label='data')
+    axs[1].add_collection(lc)
+    lc = LineCollection([[[data.start_k[k], maf_k[k]], [big_end(data, k), maf_k[k]]] for k in range(num_segments)],
+                        color='b', lw=2, alpha=0.75, label='model')
+    axs[1].add_collection(lc)
+    
+    axs[1].legend(loc='lower right', bbox_to_anchor= (1.08, 0.))
+    
+def plot_copy_number_ijk_samples(axs, copy_number_ijk_samples, data, allelic_copy_number_states):
+    assert len(axs) == 3
+    
     num_samples, num_populations, num_alleles, num_segments = np.shape(copy_number_ijk_samples)
     
-    fig, axs = plt.subplots(nrows=num_populations, sharex=True, sharey=True, figsize=(18, 6))
     y_max = allelic_copy_number_states[-1] + 1
-    plt.xlim([0, 1])
     axs[0].set_xticks([])
     axs[1].set_xticks([])
     axs[2].set_xticks([])
-    plt.ylim([0, y_max])
     axs[0].set_ylabel('normal allelic CN')
     axs[1].set_ylabel('clonal allelic CN')
     axs[2].set_ylabel('subclonal allelic CN')
+    axs[0].set_ylim([0, y_max])
+    axs[1].set_ylim([0, y_max])
+    axs[2].set_ylim([0, y_max])
     
     allele_rgba = [np.array(matplotlib.colors.to_rgba(c)) for c in ['b', 'g']]
     
@@ -488,22 +555,13 @@ def plot_copy_number_ijk_samples(copy_number_ijk_samples, data, allelic_copy_num
                                     color=colors, lw=4, alpha=0.5)
                 axs[i].add_collection(lc)
     
-    plt.suptitle(output_prefix)
-    plt.tight_layout(rect=[0.02, 0.02, 0.98, 0.95])
-    plt.savefig(os.path.join(output_path, output_prefix + '.acn.png'))
-    if show:
-        plt.show()
-    plt.close()
-    
-def plot_subclonal_diagram(parameters, discrete_parameters, data, normal_allelic_copy_number_state, output_path, output_prefix, show=True):
+def plot_subclonal_diagram(ax, parameters, discrete_parameters, data, normal_allelic_copy_number_state):
     copy_number_ijk, z_sk = discrete_parameters
     _, _, num_segments = np.shape(copy_number_ijk)
     subclonal_cancer_cell_fraction_k = parameters.subclonal_cancer_cell_fraction_s[z_sk]
     is_normal_k = np.all(copy_number_ijk == normal_allelic_copy_number_state, axis=(0, 1))
     is_clonal_k = np.all(copy_number_ijk[1, :, :] == copy_number_ijk[2, :, :], axis=0)
     
-    fig, ax = plt.subplots(figsize=(18, 3))
-    plt.xlim([0, 1])
     ax.set_xticks([])
     ax.set_ylim([0, 1])
     ax.set_ylabel('subclonal CCF')
@@ -521,80 +579,20 @@ def plot_subclonal_diagram(parameters, discrete_parameters, data, normal_allelic
     ax.add_collection(lc)
     
     ax.legend(loc='lower right', bbox_to_anchor= (1.08, 0.))
-    
-    plt.suptitle(output_prefix)
-    plt.tight_layout(rect=[0.02, 0.02, 0.98, 0.95])
-    plt.savefig(os.path.join(output_path, output_prefix + '.ccf.png'))
-    if show:   
-        plt.show()
-    plt.close()
-  
-def plot_fit(parameters, discrete_parameters, data, modeled_segments, output_path, output_prefix, show=True):
-    def make_cr_rectangle(data, modeled_segments, k):
-        start = data.start_k[k]
-        end = big_end(data, k)
-        cr_10 = 2**modeled_segments.iloc[k]['LOG2_COPY_RATIO_POSTERIOR_10']
-        cr_90 = 2**modeled_segments.iloc[k]['LOG2_COPY_RATIO_POSTERIOR_90']
-        return Rectangle([start, cr_10], end - start, cr_90 - cr_10)
-        
-    def make_maf_rectangle(data, modeled_segments, k):
-        start = data.start_k[k]
-        end = big_end(data, k)
-        maf_10 = modeled_segments.iloc[k]['MINOR_ALLELE_FRACTION_POSTERIOR_10']
-        maf_90 = modeled_segments.iloc[k]['MINOR_ALLELE_FRACTION_POSTERIOR_90']
-        return Rectangle([start, maf_10], end - start, maf_90 - maf_10)
-        
-    subclonal_cancer_cell_fraction_s, purity, cr_norm = parameters
-    copy_number_ijk, z_sk = discrete_parameters
-    
-    _, _, num_segments = np.shape(copy_number_ijk)
-    
-    subclonal_cancer_cell_fraction_k = subclonal_cancer_cell_fraction_s[z_sk]
-    overlapping_population_fraction_ik = np.array([(1. - purity) * np.ones(num_segments), 
-                                                   purity * (1. - subclonal_cancer_cell_fraction_k),
-                                                   purity * subclonal_cancer_cell_fraction_k])
-    population_weighted_copy_number_jk = np.einsum('ik,ijk->jk', overlapping_population_fraction_ik, copy_number_ijk)
-    total_cr_k = np.sum(population_weighted_copy_number_jk, axis=0)
-    log2cr_k = np.log2(total_cr_k / (cr_norm + eps_model) + eps_model)
-    maf_k = np.min(population_weighted_copy_number_jk, axis=0) / (total_cr_k + eps_model)
-    
-    figs, axs = plt.subplots(nrows=2, sharex=True, figsize=(18, 6))
+
+def plot_all_genomic_results(parameters, discrete_parameters, copy_number_ijk_samples,
+                             data, discrete_prior_config,
+                             output_path, output_prefix, show=True):
+    figs, axs = plt.subplots(nrows=6, sharex=True, figsize=(18, 6 * 3))
     plt.xlim([0, 1])
-    axs[0].set_xticks([])
-    axs[1].set_xticks([])
-    axs[0].set_ylim([0, 3])
-    axs[1].set_ylim([0, 0.5])
-    axs[0].set_ylabel('copy ratio')
-    axs[1].set_ylabel('minor-allele fraction')
-    
-    axs[0].vlines(data.end_k[data.is_contig_end_k], 0, 4, color='grey', linestyle='dashed', alpha=0.5)
-    axs[1].vlines(data.end_k[data.is_contig_end_k], 0, 0.5, color='grey', linestyle='dashed', alpha=0.5)
-    
-    pc = PatchCollection([make_cr_rectangle(data, modeled_segments, k) for k in range(num_segments)],
-                         color='r', alpha=0.25)
-    axs[0].add_collection(pc)
-    lc = LineCollection([[[data.start_k[k], 2**modeled_segments.iloc[k]['LOG2_COPY_RATIO_POSTERIOR_50']], [big_end(data, k), 2**modeled_segments.iloc[k]['LOG2_COPY_RATIO_POSTERIOR_50']]] for k in range(num_segments)],
-                        color='r', lw=2, alpha=0.75)
-    axs[0].add_collection(lc)
-    lc = LineCollection([[[data.start_k[k], 2**log2cr_k[k]], [big_end(data, k), 2**log2cr_k[k]]] for k in range(num_segments)],
-                        color='b', lw=2, alpha=0.75)
-    axs[0].add_collection(lc)
-    
-    pc = PatchCollection([make_maf_rectangle(data, modeled_segments, k) for k in range(num_segments)],
-                         color='r', alpha=0.25)
-    axs[1].add_collection(pc)
-    lc = LineCollection([[[data.start_k[k], modeled_segments.iloc[k]['MINOR_ALLELE_FRACTION_POSTERIOR_50']], [big_end(data, k), modeled_segments.iloc[k]['MINOR_ALLELE_FRACTION_POSTERIOR_50']]] for k in range(num_segments)],
-                        color='r', lw=2, alpha=0.75, label='data')
-    axs[1].add_collection(lc)
-    lc = LineCollection([[[data.start_k[k], maf_k[k]], [big_end(data, k), maf_k[k]]] for k in range(num_segments)],
-                        color='b', lw=2, alpha=0.75, label='model')
-    axs[1].add_collection(lc)
-    
-    axs[1].legend(loc='lower right', bbox_to_anchor= (1.08, 0.))
-    
+
+    plot_fit(axs[:2], parameters, discrete_parameters, data)
+    plot_copy_number_ijk_samples(axs[2:5], copy_number_ijk_samples, data, discrete_prior_config.allelic_copy_number_states)
+    plot_subclonal_diagram(axs[-1], parameters, discrete_parameters, data, discrete_prior_config.normal_allelic_copy_number_state)
+
     plt.suptitle(output_prefix)
     plt.tight_layout(rect=[0.02, 0.02, 0.98, 0.95])
-    plt.savefig(os.path.join(output_path, output_prefix + '.fit.png'))
+    plt.savefig(os.path.join(output_path, output_prefix + '.th.png'))
     if show:
         plt.show()    
     plt.close()
@@ -712,16 +710,24 @@ def run_th(modeled_segments_path, output_prefix, output_path, global_config, sho
     # fit posteriors and apply segment-length weights to discrete priors========
     data, discrete_prior = prepare_data_and_discrete_prior(modeled_segments, global_discrete_prior, discrete_prior_config, likelihood_config)
     prior = Prior(continuous_prior, discrete_prior)
+    with open(os.path.join(output_path, output_prefix + '.th.data.pkl'), 'wb') as f:
+        pickle.dump(data, f)
+    with open(os.path.join(output_path, output_prefix + '.th.prior.pkl'), 'wb') as f:
+        pickle.dump(prior, f)
     
     # perform inference=========================================================
     
     sampler, parameter_samples, logp_samples, tumor_ploidy_samples = run_mcmc_vectorized(inference_config, prior, data, logp_w)
+
+    np.save(os.path.join(output_path, output_prefix + '.th.samples.parameters.npy'), parameter_samples)
+    np.save(os.path.join(output_path, output_prefix + '.th.samples.logp.npy'), logp_samples)
+    np.save(os.path.join(output_path, output_prefix + '.th.samples.ploidy.npy'), tumor_ploidy_samples)
     
     # output corner plot========================================================
     
     plot_corner(parameter_samples, output_path, output_prefix, show)
     
-    # get MAP discrete parameters===============================================
+    # calculate and output MAP parameters=======================================
     
     map_sample_index = np.argmax(logp_samples)
     map_parameters = Parameters(
@@ -735,31 +741,19 @@ def run_th(modeled_segments_path, output_prefix, output_path, global_config, sho
     print('MAP purity:', map_parameters.purity)
     print('MAP cr_norm:', map_parameters.cr_norm)
     print('MAP ploidy:', map_tumor_ploidy)
+
+    map_result = tuple([map_parameters, map_discrete_parameters])
+    with open(os.path.join(output_path, output_prefix + '.th.map.pkl'), 'wb') as f:
+        pickle.dump(map_result, f)
     
-    # output MAP CN plot========================================================
-    
-    plot_copy_number_ijk_samples(np.array([map_discrete_parameters.copy_number_ijk]), data, discrete_prior_config.allelic_copy_number_states, 
-                                 output_path, output_prefix, show)
-    
-    # output MAP subclonal plot=================================================
-    
-    plot_subclonal_diagram(map_parameters, map_discrete_parameters, data, discrete_prior_config.normal_allelic_copy_number_state,
-                           output_path, output_prefix, show)
-    
-    # output MAP log2CR-MAF fit plot============================================
-    
-    plot_fit(map_parameters, map_discrete_parameters, data, modeled_segments, output_path, output_prefix, show)
-    plot_fit_args = tuple([map_parameters, map_discrete_parameters, data, modeled_segments, output_path, output_prefix])
-    with open(os.path.join(output_path, output_prefix + '.plotFitArgs.pkl'), 'wb') as f:
-        pickle.dump(plot_fit_args, f)
+    # output genomic plots======================================================
+
+    plot_all_genomic_results(map_parameters, map_discrete_parameters, np.array([map_discrete_parameters.copy_number_ijk]),
+                             data, discrete_prior_config, output_path, output_prefix, show)
     
     # output posterior table====================================================
-    
-    # save results==============================================================
-    
-    np.save(os.path.join(output_path, output_prefix + '.samples.npy'), parameter_samples)
-    np.save(os.path.join(output_path, output_prefix + '.logp.npy'), logp_samples)
-    np.save(os.path.join(output_path, output_prefix + '.ploidySamples.npy'), tumor_ploidy_samples)
+
+    # TODO
     
 def main():
     parser = argparse.ArgumentParser(
