@@ -152,8 +152,8 @@ def generate_label_ordered_product_states_and_log_prior(discrete_prior_config):
 #    unnorm_label_ordered_product_state_prior_li *= (1. - copy_number_event_prior_penalty)**is_non_germline_l[:, np.newaxis]
     
     # penalize subclonal non-clonal states
-#    is_subclonal_l = ~np.all(label_ordered_allelic_copy_number_product_states_lij[:, 1, :] == label_ordered_allelic_copy_number_product_states_lij[:, 2, :], axis=-1)
-#    unnorm_label_ordered_product_state_prior_li *= ~is_subclonal_l[:, np.newaxis]
+    is_subclonal_l = ~np.all(label_ordered_allelic_copy_number_product_states_lij[:, 1, :] == label_ordered_allelic_copy_number_product_states_lij[:, 2, :], axis=-1)
+    unnorm_label_ordered_product_state_prior_li *= ~is_subclonal_l[:, np.newaxis]
 
     # penalize copy-number changes from population to population
     delta_copy_number_li = (np.array([np.sum(np.abs(label_ordered_allelic_copy_number_product_states_lij[:, 0, :] - normal_allelic_copy_number_state), axis=-1),
@@ -635,7 +635,7 @@ ContinuousPriorConfig = namedtuple('ContinuousPriorConfig', ['num_subclonal_popu
                                                              'cr_norm_constraint_scale'])
 continuous_prior_config = ContinuousPriorConfig(
     num_subclonal_populations = 4,
-    subclonal_cancer_cell_fraction_alpha = 10.,
+    subclonal_cancer_cell_fraction_alpha = 1E-3,
     purity_a = 1.,
     purity_b = 10.,
     cr_norm_s = 0.1,
