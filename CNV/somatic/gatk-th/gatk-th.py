@@ -2,6 +2,7 @@
 
 import os
 import argparse
+import re
 import dill as pickle
 import numpy as np
 import pandas as pd
@@ -25,7 +26,7 @@ from sklearn.utils.extmath import cartesian
 import scipy.stats
 import scipy.special
 
-from collections import namedtuple
+from collections import namedtuple, OrderedDict
 
 import tqdm
 
@@ -102,8 +103,23 @@ def beta_logpdf_jax(x, a, b, scale=1.):
 beta_logpdf_jax_jit = jax.jit(beta_logpdf_jax)
 
 #===============================================================================
-# discrete priors
+# discrete priors and data
 #===============================================================================
+
+def read_sequence_dictionary(modeled_segments_path):
+    sequence_dictionary = OrderedDict()
+    with open(modeled_segments_path, 'r') as f:
+        for line in f:
+            if not line.startswith('@'):
+                break
+            contig_match = re.search("^@SQ.*SN:(.*)[\t]*.*$", line, re.M)
+            length_match = re.search("^@SQ.*LN:(.*)[\t]*.*$", line, re.M)
+            if contig_match is None or length_match is None:
+                continue
+            contig = contig_match.groups()[0].split('\t')[0]
+            length = int(length_match.groups()[0].split('\t')[0])
+            sequence_dictionary[contig] = length
+    return sequence_dictionary
 
 GlobalDiscretePrior = namedtuple('GlobalDiscretePrior', ['allelic_copy_number_product_states_lij',
                                                          'unnorm_product_state_log_prior_li',
@@ -189,8 +205,9 @@ def generate_label_ordered_product_states_and_log_prior(discrete_prior_config):
         marginalization_allelic_copy_number_product_states_lij = marginalization_allelic_copy_number_product_states_lij,
         marginalization_product_state_log_prior_l = marginalization_product_state_log_prior_l,
         marginalization_product_state_filter_l = marginalization_product_state_filter_l)
-  
+
 Data = namedtuple('Data', ['modeled_segments',
+                           'sequence_dictionary',
                            'obs_log2cr_logp_k',
                            'obs_maf_logp_k',
                            'num_points_cr_k',
@@ -198,26 +215,42 @@ Data = namedtuple('Data', ['modeled_segments',
                            'length_k',
                            'start_k',
                            'end_k',
-                           'is_contig_end_k',
+                           'contig_ends',
                            'is_maf_nan_k',
                            'allelic_copy_number_product_states_lij',
                            'marginalization_allelic_copy_number_product_states_lij'])
 DiscretePrior = namedtuple('DiscretePrior', ['product_state_log_prior_kl',
                                              'marginalization_product_state_log_prior_kl'])
 
-def prepare_data_and_discrete_prior(modeled_segments, global_discrete_prior, discrete_prior_config, likelihood_config):
-    data_k = np.array([[fit_t_to_log2cr(modeled_segment, likelihood_config.t_degrees_of_freedom), fit_beta_to_maf(modeled_segment), 
-                        modeled_segment['NUM_POINTS_COPY_RATIO'], modeled_segment['NUM_POINTS_ALLELE_FRACTION'], modeled_segment['END'] - modeled_segment['START'] + 1] 
+def prepare_data_and_discrete_prior(modeled_segments, sequence_dictionary,
+                                    global_discrete_prior, discrete_prior_config, likelihood_config):
+    def translate_genomic_coordinate_to_plotting_coordinate(contig, position, 
+                                                            total_genomic_length,
+                                                            contig_starts_dictionary):
+        return contig_starts_dictionary[contig] + position / total_genomic_length
+        
+    sequence_dictionary_for_plotting = OrderedDict((contig, sequence_dictionary[contig])
+                                                   for contig in modeled_segments['CONTIG'].unique())
+    contig_genomic_lengths = np.fromiter(sequence_dictionary_for_plotting.values(), dtype=int)
+    total_genomic_length = np.sum(contig_genomic_lengths)
+    contig_ends = np.cumsum(contig_genomic_lengths) / total_genomic_length
+    contig_starts = np.concatenate([[0.], contig_ends[:-1]])
+    contig_starts_dictionary = OrderedDict((contig, contig_starts[i])
+                                           for i, contig in enumerate(sequence_dictionary_for_plotting.keys()))
+
+    data_k = np.array([[fit_t_to_log2cr(modeled_segment, likelihood_config.t_degrees_of_freedom), fit_beta_to_maf(modeled_segment)]
                        for _, modeled_segment in modeled_segments.iterrows()])
 
     obs_log2cr_mu_sigma_k = np.vstack(data_k[:, 0])
     obs_maf_a_b_k = np.vstack(data_k[:, 1])
-    
-    length_k = data_k[:, 4].astype(int)
-    end_k = np.cumsum(length_k) / np.sum(length_k)
-    start_k = np.concatenate([[0.], end_k[:-1]])
-    contig_ends = modeled_segments.groupby('CONTIG', sort=False)['END'].max().reset_index()
-    
+    length_k = (modeled_segments['END'] - modeled_segments['START'] + 1).values.astype(int)
+    start_k = np.array([translate_genomic_coordinate_to_plotting_coordinate(
+                            contig, start, total_genomic_length, contig_starts_dictionary)
+                        for contig, start in zip(modeled_segments['CONTIG'], modeled_segments['START'])])
+    end_k = np.array([translate_genomic_coordinate_to_plotting_coordinate(
+                            contig, end, total_genomic_length, contig_starts_dictionary)
+                        for contig, end in zip(modeled_segments['CONTIG'], modeled_segments['END'])])
+
     product_state_prior_length_weights_ik = np.array([np.maximum(length_k / discrete_prior_config.normal_population_event_length_scale, 1.),
                                                       np.maximum(length_k / discrete_prior_config.tumor_population_event_length_scale, 1.),
                                                       np.maximum(length_k / discrete_prior_config.tumor_population_event_length_scale, 1.)])
@@ -226,14 +259,15 @@ def prepare_data_and_discrete_prior(modeled_segments, global_discrete_prior, dis
     
     data = Data(
         modeled_segments = modeled_segments,
+        sequence_dictionary = sequence_dictionary,
         obs_log2cr_logp_k = lambda x_k: t_logpdf_jax_jit(x_k, df=likelihood_config.t_degrees_of_freedom, loc=obs_log2cr_mu_sigma_k[:, 0], scale=obs_log2cr_mu_sigma_k[:, 1]),
         obs_maf_logp_k = lambda x_k: beta_logpdf_jax_jit(x_k, a=obs_maf_a_b_k[:, 0], b=obs_maf_a_b_k[:, 1], scale=0.5),
-        num_points_cr_k = data_k[:, 2].astype(int),
-        num_points_maf_k = data_k[:, 3].astype(int),
+        num_points_cr_k = modeled_segments['NUM_POINTS_COPY_RATIO'].values.astype(int),
+        num_points_maf_k = modeled_segments['NUM_POINTS_ALLELE_FRACTION'].values.astype(int),
         length_k = length_k,
         start_k = start_k,
         end_k = end_k,
-        is_contig_end_k = modeled_segments[['CONTIG', 'END']].apply(tuple, axis=1).isin(contig_ends.apply(tuple, axis=1)),
+        contig_ends = contig_ends,
         is_maf_nan_k = np.all(np.isnan(obs_maf_a_b_k), axis=1),
         allelic_copy_number_product_states_lij = global_discrete_prior.allelic_copy_number_product_states_lij,
         marginalization_allelic_copy_number_product_states_lij = global_discrete_prior.marginalization_allelic_copy_number_product_states_lij)
@@ -498,8 +532,8 @@ def plot_fit(axs, parameters, discrete_parameters, data):
     axs[0].set_ylabel('copy ratio')
     axs[1].set_ylabel('minor-allele fraction')
     
-    axs[0].vlines(data.end_k[data.is_contig_end_k], 0, 4, color='grey', linestyle='dashed', alpha=0.5)
-    axs[1].vlines(data.end_k[data.is_contig_end_k], 0, 0.5, color='grey', linestyle='dashed', alpha=0.5)
+    axs[0].vlines(data.contig_ends, 0, 4, color='grey', linestyle='dashed', alpha=0.5)
+    axs[1].vlines(data.contig_ends, 0, 0.5, color='grey', linestyle='dashed', alpha=0.5)
     
     pc = PatchCollection([make_cr_rectangle(data, k) for k in range(num_segments)],
                          color='r', alpha=0.25)
@@ -547,7 +581,7 @@ def plot_copy_number_ijk_samples(axs, copy_number_ijk_samples, data, allelic_cop
         num_states = len(copy_number_ij_states)
         
         for i in range(num_populations):
-            axs[i].vlines(data.end_k[data.is_contig_end_k], 0, y_max, color='grey', linestyle='dashed', alpha=0.5)
+            axs[i].vlines(data.contig_ends, 0, y_max, color='grey', linestyle='dashed', alpha=0.5)
             for j in range(num_alleles):
                 colors = np.tile(allele_rgba[j], (num_states, 1))
                 colors[:, 3] *= normalized_counts
@@ -566,7 +600,7 @@ def plot_subclonal_diagram(ax, parameters, discrete_parameters, data, normal_all
     ax.set_ylim([0, 1])
     ax.set_ylabel('subclonal CCF')
     
-    ax.vlines(data.end_k[data.is_contig_end_k], 0, 4, color='grey', linestyle='dashed', alpha=0.5)
+    ax.vlines(data.contig_ends, 0, 4, color='grey', linestyle='dashed', alpha=0.5)
     
     lc = LineCollection([[[data.start_k[k], 0], [big_end(data, k), 0]] for k in np.nonzero(is_normal_k)[0]],
                         color='b', lw=4, alpha=0.5, label='normal')
@@ -594,7 +628,7 @@ def plot_all_genomic_results(parameters, discrete_parameters, copy_number_ijk_sa
     plt.tight_layout(rect=[0.02, 0.02, 0.98, 0.95])
     plt.savefig(os.path.join(output_path, output_prefix + '.th.png'))
     if show:
-        plt.show()    
+        plt.show()
     plt.close()
     
 #===============================================================================
@@ -700,15 +734,17 @@ global_config = GlobalConfig(
 def run_th(modeled_segments_path, output_prefix, output_path, global_config, show=True):
     discrete_prior_config, global_discrete_prior, continuous_prior, likelihood_config, inference_config = global_config
   
-    # load modeled segments=====================================================
+    # load modeled segments and sequence dictionary=============================
     modeled_segments = pd.read_csv(modeled_segments_path, sep='\t', comment='@', dtype={'CONTIG': str})
+    sequence_dictionary = read_sequence_dictionary(modeled_segments_path)
 
     print('Output prefix:', output_prefix)
     num_segments = len(modeled_segments)
     print('Number of segments:', num_segments)
     
     # fit posteriors and apply segment-length weights to discrete priors========
-    data, discrete_prior = prepare_data_and_discrete_prior(modeled_segments, global_discrete_prior, discrete_prior_config, likelihood_config)
+    data, discrete_prior = prepare_data_and_discrete_prior(modeled_segments, sequence_dictionary,
+                                                           global_discrete_prior, discrete_prior_config, likelihood_config)
     prior = Prior(continuous_prior, discrete_prior)
     with open(os.path.join(output_path, output_prefix + '.th.data.pkl'), 'wb') as f:
         pickle.dump(data, f)
