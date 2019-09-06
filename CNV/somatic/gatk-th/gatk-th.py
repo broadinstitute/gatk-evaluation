@@ -368,7 +368,7 @@ def logp_w(transformed_ensemble_wP, prior, data, tumor_ploidy_samples=[]):
 #    subclonal_cancer_cell_fraction_weight_ws = np.sort(subclonal_cancer_cell_fraction_weight_ws, axis=-1)[:, ::-1]
     # enforce CCF sorting
 #    is_subclonal_cancer_cell_fraction_weight_sorted_w = np.all(np.diff(subclonal_cancer_cell_fraction_weight_ws, axis=1) <= 0, axis=1)
-    subclonal_cancer_cell_fraction_ws = np.sort(subclonal_cancer_cell_fraction_ws, axis=-1)[:, ::-1]
+#    subclonal_cancer_cell_fraction_ws = np.sort(subclonal_cancer_cell_fraction_ws, axis=-1)[:, ::-1]
     # TODO sort weights and fractions accordingly
     
     is_allowed_w = is_in_transformed_boundary_w #& is_subclonal_cancer_cell_fraction_sorted_w
@@ -685,10 +685,10 @@ ContinuousPriorConfig = namedtuple('ContinuousPriorConfig', ['num_subclonal_popu
                                                              'cr_norm_scale',
                                                              'cr_norm_constraint_scale'])
 continuous_prior_config = ContinuousPriorConfig(
-    num_subclonal_populations = 4,
+    num_subclonal_populations = 5,
     subclonal_cancer_cell_fraction_weight_alpha = 1E-3,
     subclonal_cancer_cell_fraction_a = 1.,
-    subclonal_cancer_cell_fraction_b = 10.,
+    subclonal_cancer_cell_fraction_b = 1.,
     purity_a = 1.,
     purity_b = 10.,
     cr_norm_s = 0.1,
@@ -797,13 +797,13 @@ def run_th(modeled_segments_path, output_prefix, output_path, global_config, sho
         parameter_samples[map_sample_index, -2],
         parameter_samples[map_sample_index, -1])
     map_discrete_parameters = calculate_map_discrete_parameters(map_parameters, discrete_prior, data, use_marginalization_states=False)
-#    map_tumor_ploidy = tumor_ploidy_samples[map_sample_index]
+    map_tumor_ploidy = tumor_ploidy_samples[map_sample_index]
     
     print('MAP subclonal_cancer_cell_fraction_weight_s:', map_parameters.subclonal_cancer_cell_fraction_weight_s)
     print('MAP subclonal_cancer_cell_fraction_s:', map_parameters.subclonal_cancer_cell_fraction_s) 
     print('MAP purity:', map_parameters.purity)
     print('MAP cr_norm:', map_parameters.cr_norm)
-#    print('MAP ploidy:', map_tumor_ploidy)
+    print('MAP ploidy:', map_tumor_ploidy)
 
     map_result = tuple([map_parameters, map_discrete_parameters])
     with open(os.path.join(output_path, output_prefix + '.th.map.pkl'), 'wb') as f:
