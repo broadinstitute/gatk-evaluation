@@ -44,7 +44,7 @@ workflow EvaluateGermlineCNVCalls {
     output {
         File confusion_matrix = EvaluateCalls.confusion_matrix
         File confusion_matrix_bounded_filters = EvaluateCalls.confusion_matrix_bounded_filters
-        File area_under_roc = EvaluateCalls.area_under_roc
+        File area_under_roc = EvaluateCalls.area_under_precision_recall_curve
         Array[File] metrics_plots = EvaluateCalls.metrics_plots
     }
 }
@@ -118,7 +118,7 @@ task EvaluateCalls {
     output {
         File confusion_matrix = "out/confusion_matrix.tsv"
         File confusion_matrix_bounded_filters = "out/confusion_matrix_bounded_filters.tsv"
-        File area_under_roc = "out/area_under_roc.tsv"
+        File area_under_precision_recall_curve = "out/area_under_precision_recall_curve.tsv"
         Array[File] metrics_plots = glob("out/plots/*")
     }
 }
