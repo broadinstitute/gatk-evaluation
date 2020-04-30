@@ -1,81 +1,148 @@
+from abc import ABC, abstractmethod
+import pandas as pd
+from collections import OrderedDict
+from intervaltree import IntervalTree
+from typing import List
+
 from interval import Interval
 import io_plt
-import pandas as pd
-import bisect
 
-class IntervalCollection:
-    """Collection of genomic intervals"""
 
-    def __init__(self, interval_list: list, header: str=None):
-        self.assert_interval_list_sorted(interval_list)
-        self.header = header
+class LocatableCollection(ABC):
+    """
+    Abstract class for a collection of genomic intervals and their corresponding data.
+    """
+
+    def find_intersection(self, interval: Interval)->List:
+        """
+        Find all entries in the collection that overlap with a given interval
+
+        Args:
+            interval: a given genomic interval
+
+        Returns: list of corresponding data attributes for entries overlapping with a given interval
+
+        """
+        interval_tree_for_contig = self._get_interval_tree(interval.chrom)
+        results = interval_tree_for_contig.search(interval.start, interval.end) if interval_tree_for_contig else []
+        return [result.data for result in results]
+
+    @abstractmethod
+    def _get_interval_tree(self, contig: str):
+        """
+
+        Args:
+            contig: chromosome for which to retrieve a corresponding interval tree
+
+        Returns:
+            an interval tree containing all intervals for a particular chromosome
+        """
+        pass
+
+    @abstractmethod
+    def get_intervals(self):
+        """
+
+        Returns: All intervals contained in this collection
+
+        """
+        pass
+
+
+class IntervalCollection(LocatableCollection):
+    """
+    Concrete class for a collection of genomic intervals only
+    """
+
+    def __init__(self, interval_list: List, header: str = None):
         self.interval_list = interval_list
-        self.last_searched_index = None
+        self.header = header
+        self.ordered_contigs = list(OrderedDict({t.chrom: None for t in self.interval_list}).keys())
+        self.contig_to_intervals_map = {contig: IntervalTree() for contig in self.ordered_contigs}
+        for interval in interval_list:
+            self.contig_to_intervals_map[interval.chrom][interval.start:interval.end] = interval
 
     @classmethod
     def read_interval_list(cls, interval_list_file):
         header = io_plt.read_comments_lines(interval_list_file)
-        intervals_df = pd.read_csv(open(interval_list_file, 'r'), comment="@", delimiter="\t", usecols=[0,1,2], header=None, names=["CONTIG","START","END"])
+        intervals_df = pd.read_csv(open(interval_list_file, 'r'), comment="@", delimiter="\t",
+                                   usecols=[0, 1, 2], header=None, names=["CONTIG", "START", "END"],
+                                   dtype={"CONTIG": str, "START": int, "END": int})
         intervals_series = intervals_df.apply(lambda x: Interval(str(x.CONTIG), int(x.START), int(x.END)), axis=1)
         interval_list = intervals_series.tolist()
         return cls(interval_list=interval_list, header=header)
 
-    @staticmethod
-    def assert_interval_list_sorted(interval_list):
-        for index in range(len(interval_list) - 1):
-            assert (interval_list[index] < interval_list[index+1]), \
-                     ("Interval list is not sorted for intervals Interval(%s) and Interval(%s)" % (str(interval_list[index]), str(interval_list[index+1])))
+    def find_intersection_with_interval_and_truncate(self, interval: Interval)->List:
+        """
+        Args:
+            interval: input interval
 
-    def write_interval_list(self, output_file_path: str, output_file_name):
-        with open(output_file_path + output_file_name, 'w') as output:
-            if (self.header != None):
-                output.write(self.header)
-                output.write("\n")
-            for interval in self.interval_list:
-                output.write(interval.to_interval_file_string() + "\n")
+        Returns:
+            list of intervals in the collection that intersect with a given intervals truncated by the end points
+        of a given interval
 
-    def find_intersecting_interval_indices(self, interval: Interval):
-        if (self.last_searched_index == None):
-            return self.__perform_binary_search(interval)
-        else:
-            query_result = self.__extend_left_right(interval, self.last_searched_index)
-            if (not query_result):
-                return self.__perform_binary_search(interval)
-            else:
-                return query_result
+        """
+        intersecting_intervals = self.find_intersection(interval)
 
-    def __perform_binary_search(self, interval: Interval):
-        index = bisect.bisect_left(self.interval_list, interval)
-        if (index < len(self.interval_list) and self.interval_list[index].intersects_with(interval)):
-            last_searched_index = index
-            return self.__extend_left_right(interval, index)
-        else:
+        result = sorted(intersecting_intervals)
+        if not result:
             return []
+        chrom = interval.chrom
+        min_val = result[0].start
+        max_val = result[-1].end
+        result[0] = Interval(chrom, max(min_val, interval.start), result[0].end)
+        result[-1] = Interval(chrom, result[-1].start, min(max_val, interval.end))
+        return result
 
-    def __extend_left_right(self, interval: Interval, intersecting_interval_index: int):
-        indices = []
-        current_index = intersecting_interval_index
-        while (current_index >= 0 and self.interval_list[current_index].intersects_with(interval)):
-            indices.insert(0, current_index)
-            current_index -= 1
-        current_index = intersecting_interval_index + 1
-        while (current_index < len(self.interval_list) and self.interval_list[current_index].intersects_with(interval)):
-            indices.append(current_index)
-            current_index += 1
-        return indices
+    def _get_interval_tree(self, contig: str):
+        return self.contig_to_intervals_map.get(contig, [])
+
+    def get_intervals(self):
+        return self.interval_list
+
+    def __sub__(self, other):
+        new_interval_list = []
+        for interval in self.interval_list:
+            intersection = other.find_intersection(interval)
+            if len(intersection) == 0:
+                new_interval_list.append(interval)
+
+        return IntervalCollection(new_interval_list, self.header)
 
     def __eq__(self, other):
-        if (self.header != other.header):
+        if type(other) is not IntervalCollection:
             return False
+        return self.interval_list == other.interval_list
 
-        if (len(self.interval_list) != len(other.interval_list)):
-            return False
 
-        for index, interval in enumerate(self.interval_list):
-            if (interval != other.interval_list[index]):
-                return False
-        return True
+class FeatureCollection(LocatableCollection):
+    """
+    Concrete class for a collection of genomic intervals and corresponding genomic features
+    that allows search.
+    """
 
-    # This apparently is no longer necessary in Python 3
-    def __ne__(self, other):
-        return not self.__eq__(other)
+    def __init__(self, interval_to_features_dict: OrderedDict):
+        self.feature_list = list(interval_to_features_dict.values())
+        self.interval_list = list(interval_to_features_dict.keys())
+        self.ordered_contigs = list(OrderedDict({t.chrom: None for t in self.interval_list}).keys())
+        self.contig_to_intervals_map = {contig: IntervalTree() for contig in self.ordered_contigs}
+        for interval in self.interval_list:
+            self.contig_to_intervals_map[interval.chrom][interval.start:interval.end] = \
+                interval_to_features_dict[interval]
+
+    def _get_interval_tree(self, contig: str):
+        return self.contig_to_intervals_map.get(contig, [])
+
+    def get_intervals(self):
+        return self.interval_list
+
+    def __iter__(self):
+        self.current_idx = 0
+        return self
+
+    def __next__(self):
+        if self.current_idx >= len(self.feature_list):
+            raise StopIteration
+        else:
+            self.current_idx += 1
+            return self.feature_list[self.current_idx - 1]

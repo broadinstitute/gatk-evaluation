@@ -12,3 +12,6 @@ dependencies:
   - numpy==1.13.3
   - pandas==0.21.0
   - pyvcf==0.6.8
+  - pybedtools==0.8.0
+  - intervaltree==2.1.0
+  - scipy==1.0.0
