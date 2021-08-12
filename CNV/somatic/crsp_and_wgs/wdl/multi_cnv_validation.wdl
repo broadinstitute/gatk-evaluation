@@ -137,13 +137,13 @@ workflow MultiCNVValidation {
         }
     }
 
-    call BpConcordanceValidation {
-        input:
-            combined_segs = CombineTracks.combined_segs_with_tracks,
-            gt_seg_files = wgs_gt_seg_files,
-            group_id = group_id_final,
-            eval_docker = eval_docker
-    }
+#    call BpConcordanceValidation {
+#        input:
+#            combined_segs = CombineTracks.combined_segs_with_tracks,
+#            gt_seg_files = wgs_gt_seg_files,
+#            group_id = group_id_final,
+#            eval_docker = eval_docker
+#    }
 
 
     # Run the purity, clinical, and CR concordance (CRSP) evaluations.  CR Concordance gets run with purity.
@@ -256,7 +256,6 @@ workflow MultiCNVValidation {
             eval_docker = eval_docker,
             gatk_docker = gatk_docker,
             clinical_sensitivity_tar_gz = ClinicalSensitivity.final_clinical_sensitivity_tar_gz,
-            bp_concordance_tar_gz = BpConcordanceValidation.final_bp_concordance_validation_outputs_tar_gz,
             reproducibility_tar_gz = ReproducibilityValidation.final_reproducibility_validation_tar_gz,
             purity_tar_gz = PurityValidation.final_purity_validation_tar_gz,
             group_id = group_id_final
@@ -312,38 +311,38 @@ task CombineTracks {
     }
 }
 
-task BpConcordanceValidation {
-
-    # This parameter is only optional to fix a coercion error.  Please treat as required
-    Array[File?] combined_segs
-    Array[File] gt_seg_files
-    String group_id
-    String eval_docker
-
-    command <<<
-        set -e
-        pushd .
-        cd /root/
-        # SUPER HACK:  We get the barcode from the ground truth filename
-        python /root/plot_bp_concordance_pcawg_pilot.py -I ${sep=" -I " combined_segs} \
-         -G ${sep=" -G " gt_seg_files} \
-         -O ${group_id}/bp_concordance/
-        tar zcvf ${group_id}_wgs_concordance.tar.gz ${group_id}/bp_concordance/
-        popd
-        cp /root/${group_id}_wgs_concordance.tar.gz .
-    >>>
-
-    runtime {
-        docker: "${eval_docker}"
-        memory: "1 GB"
-        disks: "local-disk 100 HDD"
-        preemptible: 2
-    }
-
-    output {
-        File final_bp_concordance_validation_outputs_tar_gz = "${group_id}_wgs_concordance.tar.gz"
-    }
-}
+#task BpConcordanceValidation {
+#
+#    # This parameter is only optional to fix a coercion error.  Please treat as required
+#    Array[File?] combined_segs
+#    Array[File] gt_seg_files
+#    String group_id
+#    String eval_docker
+#
+#    command <<<
+#        set -e
+#        pushd .
+#        cd /root/
+#        # SUPER HACK:  We get the barcode from the ground truth filename
+#        python /root/plot_bp_concordance_pcawg_pilot.py -I ${sep=" -I " combined_segs} \
+#         -G ${sep=" -G " gt_seg_files} \
+#         -O ${group_id}/bp_concordance/
+#        tar zcvf ${group_id}_wgs_concordance.tar.gz ${group_id}/bp_concordance/
+#        popd
+#        cp /root/${group_id}_wgs_concordance.tar.gz .
+#    >>>
+#
+#    runtime {
+#        docker: "${eval_docker}"
+#        memory: "1 GB"
+#        disks: "local-disk 100 HDD"
+#        preemptible: 2
+#    }
+#
+#    output {
+#        File final_bp_concordance_validation_outputs_tar_gz = "${group_id}_wgs_concordance.tar.gz"
+#    }
+#}
 
 task PurityValidation {
     Array[File] combined_purity_series_segs
@@ -524,7 +523,7 @@ task CreateHtmlReport {
     String eval_docker
     String gatk_docker
     File clinical_sensitivity_tar_gz
-    File bp_concordance_tar_gz
+#    File bp_concordance_tar_gz
     File reproducibility_tar_gz
     File purity_tar_gz
     String group_id
@@ -535,7 +534,6 @@ task CreateHtmlReport {
         mkdir /root/report
         cd /root/report
         tar zxvf ${clinical_sensitivity_tar_gz}
-        tar zxvf ${bp_concordance_tar_gz}
         tar zxvf ${reproducibility_tar_gz}
         tar zxvf ${purity_tar_gz}
         cp /root/style.css .
@@ -546,7 +544,7 @@ task CreateHtmlReport {
         --purity-dir ${group_id}/purity/ \
         --clinical-dir ${group_id}/clinical/ \
         --reproducibility-dir ${group_id}/reproducibility/ \
-        --bp-concordance-dir ${group_id}/bp_concordance/ \
+        --bp-concordance-dir "" \
         --html_template /root/aggregate_template.html \
         /root/report/
 

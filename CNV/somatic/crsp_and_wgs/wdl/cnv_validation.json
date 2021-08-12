@@ -1,0 +1,19 @@
+{
+	"CNVValidation.intervals": "",              //twist intervals
+	"CNVValidation.common_sites": "gs://broad-dsde-methods-th/allchr.1kg.phase3.v5a.snp.maf10.biallelic.recode.fixed.prune5.interval_list",
+	"CNVValidation.tumor_bam": "",
+	"CNVValidation.tumor_bam_idx": "",
+	"CNVValidation.normal_bam": "",
+	"CNVValidation.normal_bam_idx": "",
+	"CNVValidation.ref_fasta": "gs://broad-dsde-methods-th/refs/Homo_sapiens_assembly19.fasta",
+	"CNVValidation.ref_fasta_dict": "gs://broad-dsde-methods-th/refs/Homo_sapiens_assembly19.dict",
+	"CNVValidation.ref_fasta_fai": "gs://broad-dsde-methods-th/refs/Homo_sapiens_assembly19.fasta.fai",
+	"CNVValidation.read_count_pon": "",  //twist pon
+	"CNVValidation.gatk_docker": "us.gcr.io/broad-gatk/gatk:4.0.7.0",
+	"CNVValidation.bin_length": 250,
+	"CNVValidation.columns_of_interest": ["cn", "NM_id", "gene_sym", "strand", "width",
+        "LOG2_COPY_RATIO_POSTERIOR_50", "LOG2_COPY_RATIO_POSTERIOR_10", "LOG2_COPY_RATIO_POSTERIOR_90"],
+	"CNVValidation.columns_of_interest_seg_calls": ["cn", "NM_id", "gene_sym", "strand", "width",
+        "CALL", "MEAN_LOG2_COPY_RATIO"],
+	"CNVValidation.gt_seg_file": "",
+}

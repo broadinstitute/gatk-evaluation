@@ -1,0 +1,8 @@
+version: 1.0
+workflows:
+  - name: gakt_eval_workflows
+    subclass: WDL
+    primaryDescriptorPath: /CNV/somatic/crsp_and_wgs/wdl/cnv_validation.wdl
+    testParameterFiles:
+      -  /CNV/somatic/crsp_and_wgs/wdl/cnv_validation.json
+
