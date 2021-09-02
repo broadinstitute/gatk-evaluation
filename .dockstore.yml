@@ -1,6 +1,11 @@
 version: 1.0
 workflows:
-  - name: gakt_eval_workflows
+  - name: multi_cnv_validation
+    subclass: WDL
+    primaryDescriptorPath: /CNV/somatic/crsp_and_wgs/wdl/multi_cnv_validation.wdl
+    testParameterFiles:
+      -  /CNV/somatic/crsp_and_wgs/wdl/multi_cnv_validation.json
+  - name: cnv_validation
     subclass: WDL
     primaryDescriptorPath: /CNV/somatic/crsp_and_wgs/wdl/cnv_validation.wdl
     testParameterFiles:
