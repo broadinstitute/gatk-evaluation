@@ -1,36 +1,38 @@
+version 1.0
+
 import "https://raw.githubusercontent.com/broadinstitute/gatk/master/scripts/cnv_wdl/somatic/cnv_somatic_pair_workflow.wdl" as CNVSomaticPairWorkflow
 
 workflow CNVValidation {
+    input {
+        ### CNV parameters
+        File intervals
+        File common_sites
+        File tumor_bam
+        File tumor_bam_idx
+        File? normal_bam
+        File? normal_bam_idx
+        File ref_fasta
+        File ref_fasta_dict
+        File ref_fasta_fai
+        File read_count_pon
+        String gatk_docker
 
-    ### CNV parameters
-    File intervals
-    File common_sites
-    File tumor_bam
-    File tumor_bam_idx
-    File? normal_bam
-    File? normal_bam_idx
-    File ref_fasta
-    File ref_fasta_dict
-    File ref_fasta_fai
-    File read_count_pon
-    String gatk_docker
+        File? gatk4_jar_override
+        Int? bin_length
 
-    File? gatk4_jar_override
-    Int? bin_length
+        File? gatk4_jar_override_evaluation
 
-    File? gatk4_jar_override_evaluation
-
-    ### Validation parameters
-    Array[String] columns_of_interest
-    Array[String] columns_of_interest_seg_calls
-    File gt_seg_file
-    Float? num_changepoints_penalty_factor_normal
-    Float? kernel_variance_allele_fraction
-    Float? smoothing_threshold_allele_fraction
-    Float? smoothing_threshold_copy_ratio
-    Float? calling_copy_ratio_z_score_threshold
-    #########
-
+        ### Validation parameters
+        Array[String] columns_of_interest
+        Array[String] columns_of_interest_seg_calls
+        File gt_seg_file
+        Float? num_changepoints_penalty_factor_normal
+        Float? kernel_variance_allele_fraction
+        Float? smoothing_threshold_allele_fraction
+        Float? smoothing_threshold_copy_ratio
+        Float? calling_copy_ratio_z_score_threshold
+        #########
+    }
     call CNVSomaticPairWorkflow.CNVSomaticPairWorkflow as cnvPair {
         input:
             intervals = intervals,
@@ -94,10 +96,11 @@ workflow CNVValidation {
 }
 
 task FixGtSegFile {
-    File seg_file
+    input {
+        File seg_file
 
-    String base_seg_name = basename(seg_file)
-
+        String base_seg_name = basename(seg_file)
+    }
     command <<<
         set -e
 
@@ -116,23 +119,24 @@ task FixGtSegFile {
 }
 
 task CombineSegmentBreakpoints {
-    Array[File]+ seg_files
-    Array[String]+ labels
-    Array[String]+ columns_of_interest
+    input {
+        Array[File]+ seg_files
+        Array[String]+ labels
+        Array[String]+ columns_of_interest
 
-    File? gatk4_jar_override
-    String entity_id
+        File? gatk4_jar_override
+        String entity_id
 
-    File ref_fasta
-    File ref_fasta_dict
-    File ref_fasta_fai
+        File ref_fasta
+        File ref_fasta_dict
+        File ref_fasta_fai
 
-    # Runtime parameters
-    String gatk_docker
-    Int? preemptible_attempts
-    Int? disk_space_gb
-    Int? mem
-
+        # Runtime parameters
+        String gatk_docker
+        Int? preemptible_attempts
+        Int? disk_space_gb
+        Int? mem
+    }
     # Mem is in units of GB but our command and memory runtime values are in MB
     Int machine_mem = if defined(mem) then mem * 1000 else 3500
     Int command_mem = machine_mem - 500

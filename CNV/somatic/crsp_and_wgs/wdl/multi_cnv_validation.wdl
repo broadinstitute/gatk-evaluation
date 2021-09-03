@@ -1,101 +1,104 @@
-import "https://raw.githubusercontent.com/broadinstitute/gatk-evaluation/tm_crsp_validation/CNV/somatic/crsp_and_wgs/wdl/cnv_validation.wdl" as cnv_validation
-# making a change so that the wdl will be pushed to github
+version 1.0
+
+import "cnv_validation.wdl" as cnv_validation
+
 workflow MultiCNVValidation {
-    File ice_intervals
-    File wgs_intervals
-    File common_sites
-    File ref_fasta
-    File ref_fasta_dict
-    File ref_fasta_fai
+    input {
+        File ice_intervals
+        File wgs_intervals
+        File common_sites
+        File ref_fasta
+        File ref_fasta_dict
+        File ref_fasta_fai
 
-    File ice_read_count_pon
-    File wgs_read_count_pon
+        File ice_read_count_pon
+        File wgs_read_count_pon
 
-    String gatk_docker
+        String gatk_docker
 
-    File? gatk4_jar_override
+        File? gatk4_jar_override
 
-    # In case you are using a branch that is making changes to the evaluation tools (e.g. CombineSegmentBreakpoints)
-    File? gatk4_jar_override_evaluation
-    Int? wgs_bin_length
-    Int wxs_bin_length = 0
+        # In case you are using a branch that is making changes to the evaluation tools (e.g. CombineSegmentBreakpoints)
+        File? gatk4_jar_override_evaluation
+        Int? wgs_bin_length
+        Int wxs_bin_length = 0
 
-    String? group_id
-    String group_id_final = select_first([group_id, "input_segs"])
+        String? group_id
+        String group_id_final = select_first([group_id, "input_segs"])
 
-    String eval_docker
+        String eval_docker
 
-    ### Validation parameters
-    Float? num_changepoints_penalty_factor_normal
-    Float? kernel_variance_allele_fraction
-    Float? smoothing_threshold_allele_fraction
-    Float? smoothing_threshold_copy_ratio
-    Float? calling_copy_ratio_z_score_threshold
+        ### Validation parameters
+        Float? num_changepoints_penalty_factor_normal
+        Float? kernel_variance_allele_fraction
+        Float? smoothing_threshold_allele_fraction
+        Float? smoothing_threshold_copy_ratio
+        Float? calling_copy_ratio_z_score_threshold
 
-    ### parameter-fu
-    ### WGS concordance
-    # columns of interest in the ground truth files
-    Array[String]? wgs_columns_of_interest
-    Array[String]? wgs_columns_of_interest_seg_calls
-    Array[String] wgs_columns_of_interest_or_default = select_first([wgs_columns_of_interest, [
-        "final_total_cn", "final_major_cn", "final_minor_cn", "consensus_total_cn", "consensus_major_cn", "consensus_minor_cn",
-        "star", "level", "absolute_broad_major_cn", "absolute_broad_minor_cn", "battenberg_major_cn", "battenberg_minor_cn", "sclust_major_cn", "sclust_minor_cn",
-        "LOG2_COPY_RATIO_POSTERIOR_50", "LOG2_COPY_RATIO_POSTERIOR_10", "LOG2_COPY_RATIO_POSTERIOR_90"
-    ]])
-    Array[String] wgs_columns_of_interest_seg_calls_or_default = select_first([wgs_columns_of_interest_seg_calls, [
-        "final_total_cn", "final_major_cn", "final_minor_cn", "consensus_total_cn", "consensus_major_cn", "consensus_minor_cn",
-        "star", "level", "absolute_broad_major_cn", "absolute_broad_minor_cn", "battenberg_major_cn", "battenberg_minor_cn", "sclust_major_cn", "sclust_minor_cn",
-        "CALL", "MEAN_LOG2_COPY_RATIO"
-    ]])
-    Array[File] wgs_tumor_bam_files
-    Array[File] wgs_tumor_bam_indices
-    Array[File] wgs_normal_bam_files
-    Array[File] wgs_normal_bam_indices
-    Array[File] wgs_gt_seg_files
-    Int num_wgs_bam_files = length(wgs_tumor_bam_files)
+        ### parameter-fu
+        ### WGS concordance
+        # columns of interest in the ground truth files
+        Array[String]? wgs_columns_of_interest
+        Array[String]? wgs_columns_of_interest_seg_calls
+        Array[String] wgs_columns_of_interest_or_default = select_first([wgs_columns_of_interest, [
+            "final_total_cn", "final_major_cn", "final_minor_cn", "consensus_total_cn", "consensus_major_cn", "consensus_minor_cn",
+            "star", "level", "absolute_broad_major_cn", "absolute_broad_minor_cn", "battenberg_major_cn", "battenberg_minor_cn", "sclust_major_cn", "sclust_minor_cn",
+            "LOG2_COPY_RATIO_POSTERIOR_50", "LOG2_COPY_RATIO_POSTERIOR_10", "LOG2_COPY_RATIO_POSTERIOR_90"
+        ]])
+        Array[String] wgs_columns_of_interest_seg_calls_or_default = select_first([wgs_columns_of_interest_seg_calls, [
+            "final_total_cn", "final_major_cn", "final_minor_cn", "consensus_total_cn", "consensus_major_cn", "consensus_minor_cn",
+            "star", "level", "absolute_broad_major_cn", "absolute_broad_minor_cn", "battenberg_major_cn", "battenberg_minor_cn", "sclust_major_cn", "sclust_minor_cn",
+            "CALL", "MEAN_LOG2_COPY_RATIO"
+        ]])
+        Array[File] wgs_tumor_bam_files
+        Array[File] wgs_tumor_bam_indices
+        Array[File] wgs_normal_bam_files
+        Array[File] wgs_normal_bam_indices
+        Array[File] wgs_gt_seg_files
+        Int num_wgs_bam_files = length(wgs_tumor_bam_files)
 
-    ### purity files
-    Array[String]? purity_columns_of_interest
-    Array[String]? purity_columns_of_interest_seg_calls
-    Array[String] purity_columns_of_interest_or_default = select_first([purity_columns_of_interest, [
-        "cn", "NM_id", "gene_sym", "strand", "width",
-        "LOG2_COPY_RATIO_POSTERIOR_50", "LOG2_COPY_RATIO_POSTERIOR_10", "LOG2_COPY_RATIO_POSTERIOR_90"
-    ]])
-    Array[String] purity_columns_of_interest_seg_calls_or_default = select_first([purity_columns_of_interest_seg_calls, [
-        "cn", "NM_id", "gene_sym", "strand", "width",
-        "CALL", "MEAN_LOG2_COPY_RATIO"
-    ]])
-    Array[File] purity_tumor_bam_files
-    Array[File] purity_tumor_bam_indices
-    Array[File] purity_normal_bam_files
-    Array[File] purity_normal_bam_indices
-    Array[File] purity_gt_seg_files
+        ### purity files
+        Array[String]? purity_columns_of_interest
+        Array[String]? purity_columns_of_interest_seg_calls
+        Array[String] purity_columns_of_interest_or_default = select_first([purity_columns_of_interest, [
+            "cn", "NM_id", "gene_sym", "strand", "width",
+            "LOG2_COPY_RATIO_POSTERIOR_50", "LOG2_COPY_RATIO_POSTERIOR_10", "LOG2_COPY_RATIO_POSTERIOR_90"
+        ]])
+        Array[String] purity_columns_of_interest_seg_calls_or_default = select_first([purity_columns_of_interest_seg_calls, [
+            "cn", "NM_id", "gene_sym", "strand", "width",
+            "CALL", "MEAN_LOG2_COPY_RATIO"
+        ]])
+        Array[File] purity_tumor_bam_files
+        Array[File] purity_tumor_bam_indices
+        Array[File] purity_normal_bam_files
+        Array[File] purity_normal_bam_indices
+        Array[File] purity_gt_seg_files
 
-    Int num_purity_bam_files = length(purity_tumor_bam_files)
+        Int num_purity_bam_files = length(purity_tumor_bam_files)
 
-    ### Clinical Sensitivity
-    Array[String]? clinical_columns_of_interest
-    Array[String]? clinical_columns_of_interest_seg_calls
-    Array[String] clinical_columns_of_interest_or_default = select_first([clinical_columns_of_interest, [
-        "LOG2_COPY_RATIO_POSTERIOR_50", "LOG2_COPY_RATIO_POSTERIOR_10", "LOG2_COPY_RATIO_POSTERIOR_90", "Segment_Call", "Segment_Mean"
-    ]])
-    Array[String] clinical_columns_of_interest_seg_calls_or_default = select_first([clinical_columns_of_interest_seg_calls, [
-        "CALL", "Segment_Call", "Segment_Mean", "MEAN_LOG2_COPY_RATIO"
-    ]])
-    Array[File] clinical_tumor_bams
-    Array[File] clinical_tumor_bais
-    Int num_clinical_bams = length(clinical_tumor_bams)
-    # These cannot be released publicly.
-    Array[File] clinical_seg_gts
-    #####
+        ### Clinical Sensitivity
+        Array[String]? clinical_columns_of_interest
+        Array[String]? clinical_columns_of_interest_seg_calls
+        Array[String] clinical_columns_of_interest_or_default = select_first([clinical_columns_of_interest, [
+            "LOG2_COPY_RATIO_POSTERIOR_50", "LOG2_COPY_RATIO_POSTERIOR_10", "LOG2_COPY_RATIO_POSTERIOR_90", "Segment_Call", "Segment_Mean"
+        ]])
+        Array[String] clinical_columns_of_interest_seg_calls_or_default = select_first([clinical_columns_of_interest_seg_calls, [
+            "CALL", "Segment_Call", "Segment_Mean", "MEAN_LOG2_COPY_RATIO"
+        ]])
+        Array[File] clinical_tumor_bams
+        Array[File] clinical_tumor_bais
+        Int num_clinical_bams = length(clinical_tumor_bams)
+        # These cannot be released publicly.
+        Array[File] clinical_seg_gts
+        #####
 
-    File centromere_track
+        File centromere_track
 
-    # SM-74P4M and SM-74NF5
-    Array[Int] reproducibility_indexes = [5, 10]
-    Int index1 = reproducibility_indexes[0]
-    Int index2 = reproducibility_indexes[1]
-
+        # SM-74P4M and SM-74NF5
+        Array[Int] reproducibility_indexes = [5, 10]
+        Int index1 = reproducibility_indexes[0]
+        Int index2 = reproducibility_indexes[1]
+    }
     ### Run WGS and combine the blacklists in the evaluation.
     scatter (i in range(num_wgs_bam_files)) {
         call cnv_validation.CNVValidation as cnvValidationWGS {
@@ -264,17 +267,18 @@ workflow MultiCNVValidation {
 }
 
 task CombineTracks {
-    File combined_seg
-    File matched_normal_called_seg
-    File? gatk4_jar_override
-    File ref_fasta
-    File ref_fasta_dict
-    File ref_fasta_fai
-    String gatk_docker
-    File centromere_track
+    input {
+        File combined_seg
+        File matched_normal_called_seg
+        File? gatk4_jar_override
+        File ref_fasta
+        File ref_fasta_dict
+        File ref_fasta_fai
+        String gatk_docker
+        File centromere_track
 
-    String output_name = basename(combined_seg)
-
+        String output_name = basename(combined_seg)
+    }
     command <<<
     set -e
     echo "need to add --columns-of-interest POSSIBLE_GERMLINE when introducing germline tagging"
@@ -345,10 +349,11 @@ task CombineTracks {
 #}
 
 task PurityValidation {
-    Array[File] combined_purity_series_segs
-    String group_id
-    String eval_docker
-
+    input {
+        Array[File] combined_purity_series_segs
+        String group_id
+        String eval_docker
+    }
     command <<<
         set -e
 
@@ -370,16 +375,17 @@ task PurityValidation {
 }
 
 task ReproducibilityValidationPrep {
-    File called_segs_1
-    File called_segs_2
-    String group_id
-    String gatk_docker
-    File targets_file
-    File? gatk4_jar_override
-    File ref_fasta
-    File ref_fasta_dict
-    File ref_fasta_fai
-
+    input {
+        File called_segs_1
+        File called_segs_2
+        String group_id
+        String gatk_docker
+        File targets_file
+        File? gatk4_jar_override
+        File ref_fasta
+        File ref_fasta_dict
+        File ref_fasta_fai
+    }
     command <<<
         set -e
         # TODO: We need runtime parameters
@@ -389,13 +395,13 @@ task ReproducibilityValidationPrep {
 
         java -Xmx4g -jar ${default="/root/gatk.jar" gatk4_jar_override} CombineSegmentBreakpoints \
             --segments ${called_segs_1} --segments ${called_segs_2}  \
-			--columns-of-interest CALL --columns-of-interest MEAN_LOG2_COPY_RATIO \
+            --columns-of-interest CALL --columns-of-interest MEAN_LOG2_COPY_RATIO \
             -O reproducibility.tsv.seg -R ${ref_fasta}
 
         java -Xmx4g -jar ${default="/root/gatk.jar" gatk4_jar_override} CombineSegmentBreakpoints \
             --segments reproducibility.tsv.seg --segments targets_file.seg  \
-			--columns-of-interest CALL_1 --columns-of-interest CALL_2 --columns-of-interest MEAN_LOG2_COPY_RATIO_1 \
-			--columns-of-interest MEAN_LOG2_COPY_RATIO_2 --columns-of-interest LOG2_COPY_RATIO \
+            --columns-of-interest CALL_1 --columns-of-interest CALL_2 --columns-of-interest MEAN_LOG2_COPY_RATIO_1 \
+            --columns-of-interest MEAN_LOG2_COPY_RATIO_2 --columns-of-interest LOG2_COPY_RATIO \
             -O reproducibility_targets_tmp.tsv.seg -R ${ref_fasta}
 
         egrep -v "^\@" reproducibility_targets_tmp.tsv.seg > ${group_id}_reproducibility_targets.seg
@@ -414,14 +420,15 @@ task ReproducibilityValidationPrep {
 }
 
 task ReproducibilityValidation {
-    File called_segs_1
-    File called_segs_2
-    File reproducibility_targets
-    String group_id
-    String eval_docker
-    File targets_file
-    File? gatk4_jar_override
-
+    input {
+        File called_segs_1
+        File called_segs_2
+        File reproducibility_targets
+        String group_id
+        String eval_docker
+        File targets_file
+        File? gatk4_jar_override
+    }
     # This should be a optional, but cromwell 30 croaks.
     Float ploidy = 3.7
 
@@ -456,10 +463,11 @@ task ReproducibilityValidation {
 }
 
 task ClinicalSensitivity {
-    Array[File] merged_seg_and_gt_files
-    String group_id
-    String eval_docker
-
+    input {
+        Array[File] merged_seg_and_gt_files
+        String group_id
+        String eval_docker
+    }
     command <<<
         set -e
         mkdir -p ${group_id}
@@ -481,15 +489,16 @@ task ClinicalSensitivity {
 }
 
 task ClinicalSensitivityPrep {
-    String entity_id
-    File called_merged_seg_file
-    File ref_fasta
-    File ref_fasta_dict
-    File ref_fasta_fai
-    File intervals
-    File? gatk4_jar_override
-    String eval_docker
-
+    input {
+        String entity_id
+        File called_merged_seg_file
+        File ref_fasta
+        File ref_fasta_dict
+        File ref_fasta_fai
+        File intervals
+        File? gatk4_jar_override
+        String eval_docker
+    }
     command <<<
 
         # Need to convert the interval file.  FRAGILE
@@ -499,10 +508,10 @@ task ClinicalSensitivityPrep {
 
         java -jar ${default="/root/gatk.jar" gatk4_jar_override} CombineSegmentBreakpoints \
             --segments ${entity_id}_tmp_intervals.seg --segments ${called_merged_seg_file}  \
-			--columns-of-interest CALL \
-			--columns-of-interest Segment_Call \
-			--columns-of-interest Segment_Mean \
-			--columns-of-interest NAME \
+            --columns-of-interest CALL \
+            --columns-of-interest Segment_Call \
+            --columns-of-interest Segment_Mean \
+            --columns-of-interest NAME \
             -O ${entity_id}.clinical_sensitivity_by_target.seg -R ${ref_fasta}
 
     >>>
@@ -520,14 +529,15 @@ task ClinicalSensitivityPrep {
 }
 
 task CreateHtmlReport {
-    String eval_docker
-    String gatk_docker
-    File clinical_sensitivity_tar_gz
-#    File bp_concordance_tar_gz
-    File reproducibility_tar_gz
-    File purity_tar_gz
-    String group_id
-
+    input {
+        String eval_docker
+        String gatk_docker
+        File clinical_sensitivity_tar_gz
+        #    File bp_concordance_tar_gz
+        File reproducibility_tar_gz
+        File purity_tar_gz
+        String group_id
+    }
     command <<<
         set -e
         pushd .
