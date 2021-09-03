@@ -1,5 +1,5 @@
 import "https://raw.githubusercontent.com/broadinstitute/gatk-evaluation/tm_crsp_validation/CNV/somatic/crsp_and_wgs/wdl/cnv_validation.wdl" as cnv_validation
-
+# making a change so that the wdl will be pushed to github
 workflow MultiCNVValidation {
     File ice_intervals
     File wgs_intervals
