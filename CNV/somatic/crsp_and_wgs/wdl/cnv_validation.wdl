@@ -1,6 +1,6 @@
 version 1.0
 
-import "https://raw.githubusercontent.com/broadinstitute/gatk/master/scripts/cnv_wdl/somatic/cnv_somatic_pair_workflow.wdl" as CNVSomaticPairWorkflow
+import "gatk_wdls/cnv_somatic_pair_workflow.wdl" as CNVSomaticPairWorkflow
 
 workflow CNVValidation {
     input {
