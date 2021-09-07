@@ -6,3 +6,6 @@ workflows:
   - name: cnv_validation
     subclass: WDL
     primaryDescriptorPath: /CNV/somatic/crsp_and_wgs/wdl/cnv_validation.wdl
+  - name: purity_cnv_validation
+    subclass: WDL
+    primaryDescriptorPath: /CNV/somatic/crsp_and_wgs/wdl/purity_cnv_validation.wdl

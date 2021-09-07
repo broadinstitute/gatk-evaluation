@@ -92,7 +92,7 @@ workflow MultiCNVValidation {
         Array[File] clinical_seg_gts
         #####
 
-        File centromere_track
+#        File centromere_track
 
         # SM-74P4M and SM-74NF5
         Array[Int] reproducibility_indexes = [5, 10]
@@ -127,17 +127,17 @@ workflow MultiCNVValidation {
                 calling_copy_ratio_z_score_threshold = calling_copy_ratio_z_score_threshold
         }
 
-        call CombineTracks {
-            input:
-                combined_seg = cnvValidationWGS.combined_seg_file,
-                matched_normal_called_seg = select_first([cnvValidationWGS.called_copy_ratio_segments_normal, "null"]),
-                gatk4_jar_override  = gatk4_jar_override_evaluation,
-                ref_fasta = ref_fasta,
-                ref_fasta_dict = ref_fasta_dict,
-                ref_fasta_fai = ref_fasta_fai,
-                gatk_docker = gatk_docker,
-                centromere_track = centromere_track
-        }
+#        call CombineTracks {
+#            input:
+#                combined_seg = cnvValidationWGS.combined_seg_file,
+#                matched_normal_called_seg = select_first([cnvValidationWGS.called_copy_ratio_segments_normal, "null"]),
+#                gatk4_jar_override  = gatk4_jar_override_evaluation,
+#                ref_fasta = ref_fasta,
+#                ref_fasta_dict = ref_fasta_dict,
+#                ref_fasta_fai = ref_fasta_fai,
+#                gatk_docker = gatk_docker,
+#                centromere_track = centromere_track
+#        }
     }
 
 #    call BpConcordanceValidation {
@@ -266,54 +266,54 @@ workflow MultiCNVValidation {
 
 }
 
-task CombineTracks {
-    input {
-        File combined_seg
-        File matched_normal_called_seg
-        File? gatk4_jar_override
-        File ref_fasta
-        File ref_fasta_dict
-        File ref_fasta_fai
-        String gatk_docker
-        File centromere_track
-
-        String output_name = basename(combined_seg)
-    }
-    command <<<
-    set -e
-    echo "need to add --columns-of-interest POSSIBLE_GERMLINE when introducing germline tagging"
-
-    echo "======= GERMLINE TAGGING"
-    java -jar ${default="/root/gatk.jar" gatk4_jar_override} TagGermlineEvents \
-            --segments ${combined_seg} --called-matched-normal-seg-file ${matched_normal_called_seg} \
-            -O ${output_name}.combined.germline_tagged.seg -R ${ref_fasta}
-
-    echo "======= Centromeres "
-    java -jar ${default="/root/gatk.jar" gatk4_jar_override} CombineSegmentBreakpoints \
-            --segments ${output_name}.combined.germline_tagged.seg --segments ${centromere_track}  \
-            --columns-of-interest LOG2_COPY_RATIO_POSTERIOR_10 \
-            --columns-of-interest LOG2_COPY_RATIO_POSTERIOR_50 --columns-of-interest LOG2_COPY_RATIO_POSTERIOR_90 \
-            --columns-of-interest absolute_broad_major_cn --columns-of-interest absolute_broad_minor_cn --columns-of-interest battenberg_major_cn \
-            --columns-of-interest battenberg_minor_cn --columns-of-interest consensus_major_cn --columns-of-interest consensus_minor_cn \
-            --columns-of-interest consensus_total_cn --columns-of-interest final_major_cn --columns-of-interest final_minor_cn \
-            --columns-of-interest final_total_cn --columns-of-interest level --columns-of-interest sclust_major_cn --columns-of-interest sclust_minor_cn --columns-of-interest star \
-             --columns-of-interest type \
-            --columns-of-interest POSSIBLE_GERMLINE \
-            -O ${output_name}.final.seg -R ${ref_fasta}
-    >>>
-
-    runtime {
-        docker: "${gatk_docker}"
-        memory: "1 GB"
-        disks: "local-disk 100 HDD"
-        preemptible: 2
-        bootDiskSizeInGb: "40"
-    }
-
-    output {
-        File combined_segs_with_tracks = "${output_name}.final.seg"
-    }
-}
+#task CombineTracks {
+#    input {
+#        File combined_seg
+#        File matched_normal_called_seg
+#        File? gatk4_jar_override
+#        File ref_fasta
+#        File ref_fasta_dict
+#        File ref_fasta_fai
+#        String gatk_docker
+#        File centromere_track
+#
+#        String output_name = basename(combined_seg)
+#    }
+#    command <<<
+#    set -e
+#    echo "need to add --columns-of-interest POSSIBLE_GERMLINE when introducing germline tagging"
+#
+#    echo "======= GERMLINE TAGGING"
+#    java -jar ${default="/root/gatk.jar" gatk4_jar_override} TagGermlineEvents \
+#            --segments ${combined_seg} --called-matched-normal-seg-file ${matched_normal_called_seg} \
+#            -O ${output_name}.combined.germline_tagged.seg -R ${ref_fasta}
+#
+#    echo "======= Centromeres "
+#    java -jar ${default="/root/gatk.jar" gatk4_jar_override} CombineSegmentBreakpoints \
+#            --segments ${output_name}.combined.germline_tagged.seg --segments ${centromere_track}  \
+#            --columns-of-interest LOG2_COPY_RATIO_POSTERIOR_10 \
+#            --columns-of-interest LOG2_COPY_RATIO_POSTERIOR_50 --columns-of-interest LOG2_COPY_RATIO_POSTERIOR_90 \
+#            --columns-of-interest absolute_broad_major_cn --columns-of-interest absolute_broad_minor_cn --columns-of-interest battenberg_major_cn \
+#            --columns-of-interest battenberg_minor_cn --columns-of-interest consensus_major_cn --columns-of-interest consensus_minor_cn \
+#            --columns-of-interest consensus_total_cn --columns-of-interest final_major_cn --columns-of-interest final_minor_cn \
+#            --columns-of-interest final_total_cn --columns-of-interest level --columns-of-interest sclust_major_cn --columns-of-interest sclust_minor_cn --columns-of-interest star \
+#             --columns-of-interest type \
+#            --columns-of-interest POSSIBLE_GERMLINE \
+#            -O ${output_name}.final.seg -R ${ref_fasta}
+#    >>>
+#
+#    runtime {
+#        docker: "${gatk_docker}"
+#        memory: "1 GB"
+#        disks: "local-disk 100 HDD"
+#        preemptible: 2
+#        bootDiskSizeInGb: "40"
+#    }
+#
+#    output {
+#        File combined_segs_with_tracks = "${output_name}.final.seg"
+#    }
+#}
 
 #task BpConcordanceValidation {
 #
