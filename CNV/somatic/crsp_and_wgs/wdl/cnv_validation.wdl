@@ -1,6 +1,6 @@
 version 1.0
 
-import "gatk_wdls/cnv_somatic_pair_workflow.wdl" as CNVSomaticPairWorkflow
+import "gatk_wdls/somatic/cnv_somatic_pair_workflow.wdl" as CNVSomaticPairWorkflow
 
 workflow CNVValidation {
     input {
