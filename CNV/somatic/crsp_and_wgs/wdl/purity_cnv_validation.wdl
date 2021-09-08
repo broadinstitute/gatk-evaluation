@@ -9,8 +9,8 @@ workflow PurityCNVValidation {
 
         Array[File] purity_tumor_bam_files
         Array[File] purity_tumor_bam_indices
-        Array[File] purity_normal_bam_files
-        Array[File] purity_normal_bam_indices
+        File purity_normal_bam_file
+        File purity_normal_bam_index
 
         File ref_fasta
         File ref_fasta_dict
@@ -59,8 +59,8 @@ workflow PurityCNVValidation {
                 common_sites = common_sites,
                 tumor_bam = purity_tumor_bam_files[i],
                 tumor_bam_idx = purity_tumor_bam_indices[i],
-                normal_bam = purity_normal_bam_files[i],
-                normal_bam_idx = purity_normal_bam_indices[i],
+                normal_bam = purity_normal_bam_file,
+                normal_bam_idx = purity_normal_bam_index,
                 ref_fasta = ref_fasta,
                 ref_fasta_dict = ref_fasta_dict,
                 ref_fasta_fai = ref_fasta_fai,
