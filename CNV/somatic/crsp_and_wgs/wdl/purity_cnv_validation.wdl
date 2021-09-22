@@ -33,7 +33,7 @@ workflow PurityCNVValidation {
                                                                                                                             "cn", "NM_id", "gene_sym", "strand", "width",
                                                                                                                             "CALL", "MEAN_LOG2_COPY_RATIO"
                                                                                                                             ]])
-        Array[File] purity_gt_seg_files
+        File purity_gt_seg_file
 
         Float? num_changepoints_penalty_factor_normal
         Float? kernel_variance_allele_fraction
@@ -71,7 +71,7 @@ workflow PurityCNVValidation {
                 bin_length = wxs_bin_length,
                 columns_of_interest = purity_columns_of_interest_or_default,
                 columns_of_interest_seg_calls = purity_columns_of_interest_seg_calls_or_default,
-                gt_seg_file = purity_gt_seg_files[i],
+                gt_seg_file = purity_gt_seg_file,
                 num_changepoints_penalty_factor_normal = num_changepoints_penalty_factor_normal,
                 kernel_variance_allele_fraction = kernel_variance_allele_fraction,
                 smoothing_threshold_allele_fraction = smoothing_threshold_allele_fraction,
