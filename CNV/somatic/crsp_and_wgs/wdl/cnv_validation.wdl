@@ -6,6 +6,7 @@ workflow CNVValidation {
     input {
         ### CNV parameters
         File intervals
+        File? blacklist_intervals
         File common_sites
         File tumor_bam
         File tumor_bam_idx
@@ -36,6 +37,7 @@ workflow CNVValidation {
     call CNVSomaticPairWorkflow.CNVSomaticPairWorkflow as cnvPair {
         input:
             intervals = intervals,
+            blacklist_intervals = blacklist_intervals,
             common_sites = common_sites,
             tumor_bam = tumor_bam,
             tumor_bam_idx = tumor_bam_idx,

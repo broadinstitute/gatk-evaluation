@@ -6,6 +6,7 @@ workflow PurityCNVValidation {
     input {
         File ice_intervals
         File common_sites
+        File? blacklist_intervals
 
         Array[File] purity_tumor_bam_files
         Array[File] purity_tumor_bam_indices
@@ -56,6 +57,7 @@ workflow PurityCNVValidation {
         call cnv_validation.CNVValidation as cnvValidationPurity {
             input:
                 intervals = ice_intervals,
+                blacklist_intervals = blacklist_intervals,
                 common_sites = common_sites,
                 tumor_bam = purity_tumor_bam_files[i],
                 tumor_bam_idx = purity_tumor_bam_indices[i],
