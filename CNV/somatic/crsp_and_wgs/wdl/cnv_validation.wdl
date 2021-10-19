@@ -146,11 +146,11 @@ task CombineSegmentBreakpoints {
     command <<<
         set -e
         # Use GATK Jar override if specified
-        GATK_JAR=${default="/root/gatk.jar" gatk4_jar_override}
+        GATK_JAR=~{default="/root/gatk.jar" gatk4_jar_override}
 
-        java -Xmx${command_mem}m -jar $GATK_JAR CombineSegmentBreakpoints \
-            --segments ${sep=" --segments " seg_files} --labels ${sep=" --labels " labels} \
-            --columns-of-interest ${sep=" --columns-of-interest " columns_of_interest} -O ${entity_id}.seg -R ${ref_fasta}
+        java -Xmx~{command_mem}m -jar $GATK_JAR CombineSegmentBreakpoints \
+            --segments ~{sep=" --segments " seg_files} --labels ~{sep=" --labels " labels} \
+            --columns-of-interest ~{sep=" --columns-of-interest " columns_of_interest} -O ~{entity_id}.seg -R ~{ref_fasta}
     >>>
 
     runtime {
