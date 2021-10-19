@@ -22,7 +22,7 @@ workflow PurityCNVValidation {
         File? gatk4_jar_override
         File? gatk4_jar_override_evaluation
 
-        Int wxs_bin_length = 0
+        Int wxs_bin_length = 1000#0
 
         Array[String]? purity_columns_of_interest
         Array[String]? purity_columns_of_interest_seg_calls
