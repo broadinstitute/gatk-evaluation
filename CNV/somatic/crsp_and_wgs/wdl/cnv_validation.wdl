@@ -100,7 +100,6 @@ workflow CNVValidation {
 task FixGtSegFile {
     input {
         File seg_file
-
     }
     String base_seg_name = basename(seg_file)
 
