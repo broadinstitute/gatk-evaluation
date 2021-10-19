@@ -106,7 +106,7 @@ task FixGtSegFile {
     command <<<
         set -e
 
-        cp ${seg_file} ${base_seg_name}.fixed.seg
+        cp ~{seg_file} ~{base_seg_name}.fixed.seg
 
     >>>
 
