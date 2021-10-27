@@ -125,9 +125,9 @@ task PurityValidation {
     command <<<
         set -e
 
-        python /root/plot_purity_series_hcc1143.py -O ${group_id}/purity/  ${sep=" " combined_purity_series_segs}
+        python /root/plot_purity_series_hcc1143.py -O ~{group_id}/purity/  ~{sep=" " combined_purity_series_segs}
         echo "Doing tar..."
-        tar zcvf ${group_id}_purity.tar.gz ${group_id}/purity/
+        tar zcvf ~{group_id}_purity.tar.gz ~{group_id}/purity/
     >>>
 
     runtime {
@@ -159,20 +159,20 @@ task ReproducibilityValidationPrep {
         # TODO: We need runtime parameters
 
         # Changing extension to work with CombineSegmentBreakpoints
-        cp ${targets_file} targets_file.seg
+        cp ~{targets_file} targets_file.seg
 
-        java -Xmx4g -jar ${default="/root/gatk.jar" gatk4_jar_override} CombineSegmentBreakpoints \
-        --segments ${called_segs_1} --segments ${called_segs_2}  \
+        java -Xmx4g -jar ~{default="/root/gatk.jar" gatk4_jar_override} CombineSegmentBreakpoints \
+        --segments ~{called_segs_1} --segments ~{called_segs_2}  \
         --columns-of-interest CALL --columns-of-interest MEAN_LOG2_COPY_RATIO \
-        -O reproducibility.tsv.seg -R ${ref_fasta}
+        -O reproducibility.tsv.seg -R ~{ref_fasta}
 
-        java -Xmx4g -jar ${default="/root/gatk.jar" gatk4_jar_override} CombineSegmentBreakpoints \
+        java -Xmx4g -jar ~{default="/root/gatk.jar" gatk4_jar_override} CombineSegmentBreakpoints \
         --segments reproducibility.tsv.seg --segments targets_file.seg  \
         --columns-of-interest CALL_1 --columns-of-interest CALL_2 --columns-of-interest MEAN_LOG2_COPY_RATIO_1 \
         --columns-of-interest MEAN_LOG2_COPY_RATIO_2 --columns-of-interest LOG2_COPY_RATIO \
-        -O reproducibility_targets_tmp.tsv.seg -R ${ref_fasta}
+        -O reproducibility_targets_tmp.tsv.seg -R ~{ref_fasta}
 
-        egrep -v "^\@" reproducibility_targets_tmp.tsv.seg > ${group_id}_reproducibility_targets.seg
+        egrep -v "^\@" reproducibility_targets_tmp.tsv.seg > ~{group_id}_reproducibility_targets.seg
     >>>
 
     runtime {
@@ -208,14 +208,14 @@ task ReproducibilityValidation {
 
         echo "Plotting...."
         python /root/run_plot_reproducibility.py \
-        ${reproducibility_targets} \
-        ${sample1_name} \
-        ${sample2_name} \
-        ${group_id}/reproducibility/ \
-        ${ploidy} \
-        ${true='--cr' false='' is_cr}
+        ~{reproducibility_targets} \
+        ~{sample1_name} \
+        ~{sample2_name} \
+        ~{group_id}/reproducibility/ \
+        ~{ploidy} \
+        ~{true='--cr' false='' is_cr}
 
-        tar zcvf ${group_id}_reproducibility.tar.gz ${group_id}/reproducibility/
+        tar zcvf ~{group_id}_reproducibility.tar.gz ~{group_id}/reproducibility/
     >>>
 
     runtime {
