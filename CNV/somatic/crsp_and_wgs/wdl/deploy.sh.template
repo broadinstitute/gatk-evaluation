@@ -15,7 +15,7 @@ EVAL_WDL_DIR=/Users/tmelman/Documents/Code/gatk-evaluation/CNV/somatic/crsp_and_
 #   then this variable will be 4.0.2.1
 # If you want to use a git hash (e.g. a74c8e268333a9eefcbdd0cd65da4e62e87e7df6), you can set RELEASE to that as well.
 #RELEASE=4.0.2.1
-RELEASE=4.0.7.0
+RELEASE=4.1.2.0
 ##### MODIFY PARAMETERS END (Do not modify below this line)
 
 
