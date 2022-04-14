@@ -236,13 +236,14 @@ def run_purity_plotting(input_tsvs, output_dir):
         tp = segs_gt_to_consider[called_amp & gt_amp]
         all_gt_amp = segs_gt_to_consider[gt_amp]
         sens_amps_N = len(all_gt_amp)
-        sens_amps = float(len(tp)) / float(sens_amps_N)
+        if sens_amps_N>0: sens_amps = float(len(tp)) / float(sens_amps_N)
+        else: sens_amps = 0
         sens_amps_ci = clopper_pearson(len(tp), sens_amps_N)
 
 
         fp = segs_gt_to_consider[called_amp & ~gt_amp]
         prec_amps_N = len(tp) + len(fp)
-        prec_amps = float(len(tp)) / (float(prec_amps_N + .0001)) # add small number to denom for 0 events)
+        prec_amps = float(len(tp)) / float(prec_amps_N)
         prec_amps_ci = clopper_pearson(len(tp), prec_amps_N)
 
 
