@@ -131,7 +131,7 @@ task PurityValidation {
     command <<<
         set -e
 
-        python /root/plot_purity_series_hcc1143.py -O ~{group_id}/purity/  ~{sep=" " combined_purity_series_segs}
+        python3 /root/plot_purity_series_hcc1143.py -O ~{group_id}/purity/  ~{sep=" " combined_purity_series_segs}
         echo "Doing tar..."
         tar zcvf ~{group_id}_purity.tar.gz ~{group_id}/purity/
     >>>
@@ -213,7 +213,7 @@ task ReproducibilityValidation {
         set -e
 
         echo "Plotting...."
-        python /root/run_plot_reproducibility.py \
+        python3 /root/run_plot_reproducibility.py \
         ~{reproducibility_targets} \
         ~{sample1_name} \
         ~{sample2_name} \

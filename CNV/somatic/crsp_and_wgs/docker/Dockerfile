@@ -2,6 +2,7 @@ FROM ubuntu:20.04
 
 RUN apt-get update
 RUN apt-get install -y python3-pip
+RUN apt-get install -y python3
 #curl libxft-dev libfreetype6 libfreetype6-dev libblas-dev liblapack-dev liblapacke-dev gfortran
 RUN pip install --upgrade pip
 RUN pip install numpy==1.20.3
