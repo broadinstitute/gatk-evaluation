@@ -33,10 +33,6 @@ workflow CNVValidation {
         Float? smoothing_threshold_copy_ratio
         Float? calling_copy_ratio_z_score_threshold
         #########
-
-        ### CallCopyRatioSegments parameters
-        Float? neutral_segment_copy_ratio_lower_bound
-        Float? neutral_segment_copy_ratio_upper_bound
     }
     call CNVSomaticPairWorkflow.CNVSomaticPairWorkflow as cnvPair {
         input:
@@ -58,9 +54,7 @@ workflow CNVValidation {
             smoothing_threshold_allele_fraction = smoothing_threshold_allele_fraction,
             smoothing_threshold_copy_ratio = smoothing_threshold_copy_ratio,
             mem_gb_for_model_segments = 31,
-            calling_copy_ratio_z_score_threshold = calling_copy_ratio_z_score_threshold,
-            neutral_segment_copy_ratio_lower_bound = neutral_segment_copy_ratio_lower_bound,
-            neutral_segment_copy_ratio_upper_bound = neutral_segment_copy_ratio_upper_bound
+            calling_copy_ratio_z_score_threshold = calling_copy_ratio_z_score_threshold
     }
 
     call FixGtSegFile {
