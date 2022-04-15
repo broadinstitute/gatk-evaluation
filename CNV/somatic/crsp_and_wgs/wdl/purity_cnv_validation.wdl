@@ -28,7 +28,8 @@ workflow PurityCNVValidation {
         Array[String]? purity_columns_of_interest_seg_calls
         Array[String] purity_columns_of_interest_or_default = select_first([purity_columns_of_interest, [
                                                                                                         "cn", "NM_id", "gene_sym", "strand", "width",
-                                                                                                        "LOG2_COPY_RATIO_POSTERIOR_50", "LOG2_COPY_RATIO_POSTERIOR_10", "LOG2_COPY_RATIO_POSTERIOR_90"
+                                                                                                        "LOG2_COPY_RATIO_POSTERIOR_50", "LOG2_COPY_RATIO_POSTERIOR_10", "LOG2_COPY_RATIO_POSTERIOR_90",
+                                                                                                        "MINOR_ALLELE_FRACTION_POSTERIOR_50", "MINOR_ALLELE_FRACTION_POSTERIOR_10", "MINOR_ALLELE_FRACTION_POSTERIOR_90"
                                                                                                         ]])
         Array[String] purity_columns_of_interest_seg_calls_or_default = select_first([purity_columns_of_interest_seg_calls, [
                                                                                                                             "cn", "NM_id", "gene_sym", "strand", "width",
@@ -51,6 +52,9 @@ workflow PurityCNVValidation {
         Int index2 = reproducibility_indexes[1]
 
         Int num_purity_bam_files = length(purity_tumor_bam_files)
+
+        Float? neutral_segment_copy_ratio_lower_bound
+        Float? neutral_segment_copy_ratio_upper_bound
     }
 
     scatter (i in range(num_purity_bam_files)) {
@@ -78,7 +82,9 @@ workflow PurityCNVValidation {
                 kernel_variance_allele_fraction = kernel_variance_allele_fraction,
                 smoothing_threshold_allele_fraction = smoothing_threshold_allele_fraction,
                 smoothing_threshold_copy_ratio = smoothing_threshold_copy_ratio,
-                calling_copy_ratio_z_score_threshold = calling_copy_ratio_z_score_threshold
+                calling_copy_ratio_z_score_threshold = calling_copy_ratio_z_score_threshold,
+                neutral_segment_copy_ratio_lower_bound = neutral_segment_copy_ratio_lower_bound,
+                neutral_segment_copy_ratio_upper_bound = neutral_segment_copy_ratio_upper_bound
         }
     }
 
