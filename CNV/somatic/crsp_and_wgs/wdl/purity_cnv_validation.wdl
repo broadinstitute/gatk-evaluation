@@ -95,29 +95,29 @@ workflow PurityCNVValidation {
             eval_docker = eval_docker
     }
 
-    call ReproducibilityValidationPrep {
-        input:
-            called_segs_1 = cnvValidationPurity.combined_seg_cr_calls_file[index1],
-            called_segs_2 = cnvValidationPurity.combined_seg_cr_calls_file[index2],
-            group_id = group_id_final,
-            targets_file = cnvValidationPurity.denoised_copy_ratios_tumor[index1],
-            gatk4_jar_override  = gatk4_jar_override,
-            ref_fasta = ref_fasta,
-            ref_fasta_dict = ref_fasta_dict,
-            ref_fasta_fai = ref_fasta_fai,
-            gatk_docker = gatk_docker
-    }
-
-    call ReproducibilityValidation {
-        input:
-            called_segs_1 = cnvValidationPurity.combined_seg_cr_calls_file[index1],
-            called_segs_2 = cnvValidationPurity.combined_seg_cr_calls_file[index2],
-            reproducibility_targets = ReproducibilityValidationPrep.reproducibility_targets,
-            group_id = group_id_final,
-            targets_file = cnvValidationPurity.denoised_copy_ratios_tumor[index1],
-            gatk4_jar_override  = gatk4_jar_override_evaluation,
-            eval_docker = eval_docker
-    }
+#    call ReproducibilityValidationPrep {
+#        input:
+#            called_segs_1 = cnvValidationPurity.combined_seg_cr_calls_file[index1],
+#            called_segs_2 = cnvValidationPurity.combined_seg_cr_calls_file[index2],
+#            group_id = group_id_final,
+#            targets_file = cnvValidationPurity.denoised_copy_ratios_tumor[index1],
+#            gatk4_jar_override  = gatk4_jar_override,
+#            ref_fasta = ref_fasta,
+#            ref_fasta_dict = ref_fasta_dict,
+#            ref_fasta_fai = ref_fasta_fai,
+#            gatk_docker = gatk_docker
+#    }
+#
+#    call ReproducibilityValidation {
+#        input:
+#            called_segs_1 = cnvValidationPurity.combined_seg_cr_calls_file[index1],
+#            called_segs_2 = cnvValidationPurity.combined_seg_cr_calls_file[index2],
+#            reproducibility_targets = ReproducibilityValidationPrep.reproducibility_targets,
+#            group_id = group_id_final,
+#            targets_file = cnvValidationPurity.denoised_copy_ratios_tumor[index1],
+#            gatk4_jar_override  = gatk4_jar_override_evaluation,
+#            eval_docker = eval_docker
+#    }
 }
 
 
