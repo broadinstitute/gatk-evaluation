@@ -6,19 +6,23 @@ import os
 from argparse import RawDescriptionHelpFormatter, ArgumentParser
 from clopper_pearson import clopper_pearson
 import matplotlib.pyplot as plt
+import numpy as np
 
 import pandas
 from pandas import DataFrame
 from pandas import Series
+
+USE_OLD_CALLER = False
 
 ploidy = 3.7
 
 GT_CN_COLUMN_NAME = "cn"
 GT_CR_COLUMN_NAME = "gt_cr"
 GUESS_CR_COLUMN_NAME = "guess_cr"
-INPUT_GUESS_CR_COLUMN_NAME = "MEAN_LOG2_COPY_RATIO"
 IS_LOG2_GUESS_CR = True
 MULTI_VALUE_SEPARATOR = "__"
+MAX_COPY_NUMBER_FOR_DELETION = 1
+MIN_COPY_NUMBER_FOR_AMPLIFICATION = 3
 
 
 def more_than_one_value(v):
@@ -143,6 +147,10 @@ def is_passing(hi_sens, hi_prec, purity, min_sensitivity, min_precision, min_sup
     return True
 
 
+def total_length_in_bp(segments_pandas_df):
+    return np.sum(list(segments_pandas_df["END"] - segments_pandas_df["START"] + 1))
+
+
 def run_purity_plotting(input_tsvs, output_dir):
     # type: (list[str], str) -> None
     """
@@ -171,6 +179,9 @@ def run_purity_plotting(input_tsvs, output_dir):
         sample = find_sample_from_filename(input_tsv)
 
         segs_df_tmp = pandas.read_csv(input_tsv, sep="\t", comment="@")
+        # CallModeledSegments's output's column header should contain LOG2_COPY_RATIO_POSTERIOR_50. CallCopyRatioSegments' should contain MEAN_LOG2_COPY_RATIO
+        INPUT_GUESS_CR_COLUMN_NAME = "LOG2_COPY_RATIO_POSTERIOR_50" if ("LOG2_COPY_RATIO_POSTERIOR_50" in segs_df_tmp.columns) else "MEAN_LOG2_COPY_RATIO"
+        
 
         # Clean up by removing all locations where there was more than one ground truth value for copy number/ratio
         segs_df = segs_df_tmp[segs_df_tmp[GT_CN_COLUMN_NAME].apply(more_than_one_value)]
@@ -193,16 +204,28 @@ def run_purity_plotting(input_tsvs, output_dir):
         segs_gt_to_consider = segs_df[~segs_df["CALL"].isnull() & (segs_df["CONTIG"] != "2")]
 
         ## Amps
-        tp = segs_gt_to_consider[(segs_gt_to_consider["CALL"] == "+") & (segs_gt_to_consider[GT_CN_COLUMN_NAME] >= 5)]
-        all_gt_amp = segs_gt_to_consider[segs_gt_to_consider[GT_CN_COLUMN_NAME] >= 5]
-        sens_amps = float(len(tp)) / float(len(all_gt_amp))
-        sens_amps_ci = clopper_pearson(len(tp), len(all_gt_amp))
-        sens_amps_N = len(all_gt_amp)
+        tp = segs_gt_to_consider[(segs_gt_to_consider["CALL"] == "+") & (segs_gt_to_consider[GT_CN_COLUMN_NAME] >= MIN_COPY_NUMBER_FOR_AMPLIFICATION)]
+        tp_bps = total_length_in_bp(tp)
+        all_gt_amp = segs_gt_to_consider[segs_gt_to_consider[GT_CN_COLUMN_NAME] >= MIN_COPY_NUMBER_FOR_AMPLIFICATION]
+        all_gt_amp_bps = total_length_in_bp(all_gt_amp)
+        
+        if all_gt_amp_bps == 0:
+            sens_amps = 1.0
+            sens_amps_ci = (0.0, 1.0)
+        else:
+            sens_amps = float(tp_bps) / float(all_gt_amp_bps)
+            sens_amps_ci = clopper_pearson(tp_bps, all_gt_amp_bps)
+        sens_amps_N = all_gt_amp_bps
 
-        fp = segs_gt_to_consider[(segs_gt_to_consider["CALL"] == "+") & (segs_gt_to_consider[GT_CN_COLUMN_NAME] <= 4)]
-        prec_amps = float(len(tp)) / float(len(tp) + len(fp))
-        prec_amps_ci = clopper_pearson(len(tp), (len(tp) + len(fp)))
-        prec_amps_N = len(tp) + len(fp)
+        fp = segs_gt_to_consider[(segs_gt_to_consider["CALL"] == "+") & (segs_gt_to_consider[GT_CN_COLUMN_NAME] < MIN_COPY_NUMBER_FOR_AMPLIFICATION)]
+        fp_bps = total_length_in_bp(fp)
+        if tp_bps + fp_bps == 0:
+            prec_amps = 1.0
+            prec_amps_ci = (0.0, 1.0)
+        else:
+            prec_amps = float(tp_bps) / float(tp_bps + fp_bps)
+            prec_amps_ci = clopper_pearson(tp_bps, (tp_bps + fp_bps))
+        prec_amps_N = tp_bps + fp_bps
 
         amp_result = Series(name=sample, data={result_cols[0]: sens_amps, result_cols[1]: sens_amps_ci[0],
                                                result_cols[2]: sens_amps_ci[1], result_cols[3]: sens_amps_N,
@@ -220,17 +243,29 @@ def run_purity_plotting(input_tsvs, output_dir):
 
         ## Dels
         tp_del = segs_gt_to_consider[
-            (segs_gt_to_consider["CALL"] == "-") & (segs_gt_to_consider[GT_CN_COLUMN_NAME] <= 2)]
-        all_gt_del = segs_gt_to_consider[segs_gt_to_consider[GT_CN_COLUMN_NAME] <= 2]
-        sens_dels = float(len(tp_del)) / float(len(all_gt_del))
-        sens_dels_ci = clopper_pearson(len(tp_del), len(all_gt_del))
-        sens_dels_N = len(all_gt_del)
+            (segs_gt_to_consider["CALL"] == "-") & (segs_gt_to_consider[GT_CN_COLUMN_NAME] <= MAX_COPY_NUMBER_FOR_DELETION)]
+        tp_del_bps = total_length_in_bp(tp_del)
+        all_gt_del = segs_gt_to_consider[segs_gt_to_consider[GT_CN_COLUMN_NAME] <= MAX_COPY_NUMBER_FOR_DELETION]
+        all_gt_del_bps = total_length_in_bp(all_gt_del)
+        if all_gt_del_bps == 0:
+            sens_dels = 1.0
+            sens_dels_ci = (0.0, 1.0)
+        else:
+            sens_dels = float(tp_del_bps) / float(all_gt_del_bps)
+            sens_dels_ci = clopper_pearson(tp_del_bps, all_gt_del_bps)
+        sens_dels_N = all_gt_del_bps
 
         fp_del = segs_gt_to_consider[
-            (segs_gt_to_consider["CALL"] == "-") & (segs_gt_to_consider[GT_CN_COLUMN_NAME] > 2)]
-        prec_dels = float(len(tp_del)) / float(len(tp_del) + len(fp_del))
-        prec_dels_ci = clopper_pearson(len(tp_del), (len(tp_del) + len(fp_del)))
-        prec_dels_N = len(tp_del) + len(fp_del)
+            (segs_gt_to_consider["CALL"] == "-") & (segs_gt_to_consider[GT_CN_COLUMN_NAME] > MAX_COPY_NUMBER_FOR_DELETION)]
+        fp_del_bps = total_length_in_bp(fp_del)
+        
+        if (tp_del_bps + fp_del_bps) == 0:
+            prec_dels = 1.0
+            prec_dels_ci = (0.0, 1.0)
+        else:
+            prec_dels = float(tp_del_bps) / float(tp_del_bps + fp_del_bps)
+            prec_dels_ci = clopper_pearson(tp_del_bps, (tp_del_bps + fp_del_bps))
+        prec_dels_N = tp_del_bps + fp_del_bps
 
         del_result = Series(name=sample, data={result_cols[0]: sens_dels, result_cols[1]: sens_dels_ci[0],
                                                result_cols[2]: sens_dels_ci[1], result_cols[3]: sens_dels_N,

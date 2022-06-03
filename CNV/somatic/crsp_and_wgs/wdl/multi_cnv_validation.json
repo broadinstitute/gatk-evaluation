@@ -24,6 +24,7 @@
 ],
  "MultiCNVValidation.common_sites": "gs://broad-dsde-methods-th/allchr.1kg.phase3.v5a.snp.maf10.biallelic.recode.fixed.prune5.interval_list",
  "MultiCNVValidation.eval_docker": "us.gcr.io/broad-dsde-methods/gatk-evaluation/cnv_somatic_1p5:crsp_and_wgs_1.1",
+ "MultiCNVValidation.gatk4_jar_override_evaluation": "gs://broad-dsde-methods-lichtens/test_cnv_validation/gatk.jar",
  "MultiCNVValidation.gatk_docker": "us.gcr.io/broad-gatk/gatk:4.0.7.0",
  "MultiCNVValidation.group_id": "Evaluation_CNV_1.5",
  "MultiCNVValidation.ice_intervals": "gs://broad-dsde-methods-th/target/ice_targets.tsv.interval_list",

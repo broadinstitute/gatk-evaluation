@@ -1,5 +1,7 @@
 import "cnv_validation.wdl" as cnv_validation
 
+import "https://api.firecloud.org/ga4gh/v1/tools/mkanaszn:mkn_CNV_validation_CallModeledSegments/versions/1/plain-WDL/descriptor" as cnv_validation
+
 workflow MultiCNVValidation {
     File ice_intervals
     File wgs_intervals
@@ -24,6 +26,15 @@ workflow MultiCNVValidation {
     String group_id_final = select_first([group_id, "input_segs"])
 
     String eval_docker
+    
+    ### Python files for validation
+    File cli_utils_py
+    File clopper_pearson_py
+    File plot_bp_concordance_pcawg_pilot_py
+    File plot_purity_series_hcc1143_py
+    File run_plot_reproducibility_py
+    File plot_clinical_sensitivity_py
+    File run_html_report_py
 
     ### Validation parameters
     Float? num_changepoints_penalty_factor_normal
@@ -31,6 +42,21 @@ workflow MultiCNVValidation {
     Float? smoothing_threshold_allele_fraction
     Float? smoothing_threshold_copy_ratio
     Float? calling_copy_ratio_z_score_threshold
+    
+    ### CallModeledSegments parameters
+    Boolean? load_copy_ratio
+    Boolean? load_allele_fraction
+    Float? normal_minor_allele_fraction_threshold
+    Float? copy_ratio_peak_min_relative_height
+    Float? copy_ratio_kernel_density_bandwidth
+    Float? min_fraction_of_points_in_normal_allele_fraction_region
+    Float? min_weight_first_cr_peak_cr_data_only
+    Float? max_phred_score_normal
+    Int? n_inference_iterations
+    Float? inference_total_grad_norm_constraint
+    Int? n_extra_gaussians_mixture_model
+    Int? max_n_peaks_in_copy_ratio
+    Int? mem_gb_for_call_modeled_segments    
 
     ### parameter-fu
     ### WGS concordance
@@ -45,7 +71,7 @@ workflow MultiCNVValidation {
     Array[String] wgs_columns_of_interest_seg_calls_or_default = select_first([wgs_columns_of_interest_seg_calls, [
         "final_total_cn", "final_major_cn", "final_minor_cn", "consensus_total_cn", "consensus_major_cn", "consensus_minor_cn",
         "star", "level", "absolute_broad_major_cn", "absolute_broad_minor_cn", "battenberg_major_cn", "battenberg_minor_cn", "sclust_major_cn", "sclust_minor_cn",
-        "CALL", "MEAN_LOG2_COPY_RATIO"
+        "CALL", "LOG2_COPY_RATIO_POSTERIOR_50"
     ]])
     Array[File] wgs_tumor_bam_files
     Array[File] wgs_tumor_bam_indices
@@ -63,7 +89,7 @@ workflow MultiCNVValidation {
     ]])
     Array[String] purity_columns_of_interest_seg_calls_or_default = select_first([purity_columns_of_interest_seg_calls, [
         "cn", "NM_id", "gene_sym", "strand", "width",
-        "CALL", "MEAN_LOG2_COPY_RATIO"
+        "CALL", "LOG2_COPY_RATIO_POSTERIOR_50"
     ]])
     Array[File] purity_tumor_bam_files
     Array[File] purity_tumor_bam_indices
@@ -80,7 +106,7 @@ workflow MultiCNVValidation {
         "LOG2_COPY_RATIO_POSTERIOR_50", "LOG2_COPY_RATIO_POSTERIOR_10", "LOG2_COPY_RATIO_POSTERIOR_90", "Segment_Call", "Segment_Mean"
     ]])
     Array[String] clinical_columns_of_interest_seg_calls_or_default = select_first([clinical_columns_of_interest_seg_calls, [
-        "CALL", "Segment_Call", "Segment_Mean", "MEAN_LOG2_COPY_RATIO"
+        "CALL", "Segment_Call", "Segment_Mean", "LOG2_COPY_RATIO_POSTERIOR_50"
     ]])
     Array[File] clinical_tumor_bams
     Array[File] clinical_tumor_bais
@@ -88,6 +114,8 @@ workflow MultiCNVValidation {
     # These cannot be released publicly.
     Array[File] clinical_seg_gts
     #####
+    
+    File centromere_track
 
     File centromere_track
 
@@ -121,7 +149,19 @@ workflow MultiCNVValidation {
                 kernel_variance_allele_fraction = kernel_variance_allele_fraction,
                 smoothing_threshold_allele_fraction = smoothing_threshold_allele_fraction,
                 smoothing_threshold_copy_ratio = smoothing_threshold_copy_ratio,
-                calling_copy_ratio_z_score_threshold = calling_copy_ratio_z_score_threshold
+            	load_copy_ratio = load_copy_ratio,
+                load_allele_fraction = load_allele_fraction,
+                normal_minor_allele_fraction_threshold = normal_minor_allele_fraction_threshold,
+                copy_ratio_peak_min_relative_height = copy_ratio_peak_min_relative_height,
+                copy_ratio_kernel_density_bandwidth = copy_ratio_kernel_density_bandwidth,
+                min_fraction_of_points_in_normal_allele_fraction_region = min_fraction_of_points_in_normal_allele_fraction_region,
+                min_weight_first_cr_peak_cr_data_only = min_weight_first_cr_peak_cr_data_only,
+                max_phred_score_normal = max_phred_score_normal,
+                n_inference_iterations = n_inference_iterations,
+                inference_total_grad_norm_constraint = inference_total_grad_norm_constraint,
+                n_extra_gaussians_mixture_model = n_extra_gaussians_mixture_model,
+                max_n_peaks_in_copy_ratio = max_n_peaks_in_copy_ratio,
+                mem_gb_for_call_modeled_segments = mem_gb_for_call_modeled_segments
         }
 
         call CombineTracks {
@@ -142,7 +182,14 @@ workflow MultiCNVValidation {
             combined_segs = CombineTracks.combined_segs_with_tracks,
             gt_seg_files = wgs_gt_seg_files,
             group_id = group_id_final,
-            eval_docker = eval_docker
+            eval_docker = eval_docker,
+            cli_utils_py = cli_utils_py,
+            clopper_pearson_py = clopper_pearson_py,
+            plot_bp_concordance_pcawg_pilot_py = plot_bp_concordance_pcawg_pilot_py,
+            plot_purity_series_hcc1143_py = plot_purity_series_hcc1143_py,
+            run_plot_reproducibility_py = run_plot_reproducibility_py,
+            plot_clinical_sensitivity_py = plot_clinical_sensitivity_py,
+            run_html_report_py = run_html_report_py
     }
 
 
@@ -171,7 +218,19 @@ workflow MultiCNVValidation {
                 kernel_variance_allele_fraction = kernel_variance_allele_fraction,
                 smoothing_threshold_allele_fraction = smoothing_threshold_allele_fraction,
                 smoothing_threshold_copy_ratio = smoothing_threshold_copy_ratio,
-                calling_copy_ratio_z_score_threshold = calling_copy_ratio_z_score_threshold
+            	load_copy_ratio = load_copy_ratio,
+                load_allele_fraction = load_allele_fraction,
+                normal_minor_allele_fraction_threshold = normal_minor_allele_fraction_threshold,
+                copy_ratio_peak_min_relative_height = copy_ratio_peak_min_relative_height,
+                copy_ratio_kernel_density_bandwidth = copy_ratio_kernel_density_bandwidth,
+                min_fraction_of_points_in_normal_allele_fraction_region = min_fraction_of_points_in_normal_allele_fraction_region,
+                min_weight_first_cr_peak_cr_data_only = min_weight_first_cr_peak_cr_data_only,
+                max_phred_score_normal = max_phred_score_normal,
+                n_inference_iterations = n_inference_iterations,
+                inference_total_grad_norm_constraint = inference_total_grad_norm_constraint,
+                n_extra_gaussians_mixture_model = n_extra_gaussians_mixture_model,
+                max_n_peaks_in_copy_ratio = max_n_peaks_in_copy_ratio,
+                mem_gb_for_call_modeled_segments = mem_gb_for_call_modeled_segments
         }
     }
 
@@ -197,7 +256,19 @@ workflow MultiCNVValidation {
                 kernel_variance_allele_fraction = kernel_variance_allele_fraction,
                 smoothing_threshold_allele_fraction = smoothing_threshold_allele_fraction,
                 smoothing_threshold_copy_ratio = smoothing_threshold_copy_ratio,
-                calling_copy_ratio_z_score_threshold = calling_copy_ratio_z_score_threshold
+            	load_copy_ratio = load_copy_ratio,
+                load_allele_fraction = load_allele_fraction,
+                normal_minor_allele_fraction_threshold = normal_minor_allele_fraction_threshold,
+                copy_ratio_peak_min_relative_height = copy_ratio_peak_min_relative_height,
+                copy_ratio_kernel_density_bandwidth = copy_ratio_kernel_density_bandwidth,
+                min_fraction_of_points_in_normal_allele_fraction_region = min_fraction_of_points_in_normal_allele_fraction_region,
+                min_weight_first_cr_peak_cr_data_only = min_weight_first_cr_peak_cr_data_only,
+                max_phred_score_normal = max_phred_score_normal,
+                n_inference_iterations = n_inference_iterations,
+                inference_total_grad_norm_constraint = inference_total_grad_norm_constraint,
+                n_extra_gaussians_mixture_model = n_extra_gaussians_mixture_model,
+                max_n_peaks_in_copy_ratio = max_n_peaks_in_copy_ratio,
+                mem_gb_for_call_modeled_segments = mem_gb_for_call_modeled_segments
         }
 
         call ClinicalSensitivityPrep {
@@ -217,9 +288,16 @@ workflow MultiCNVValidation {
         input:
             combined_purity_series_segs = cnvValidationPurity.combined_seg_cr_calls_file,
             group_id = group_id_final,
-            eval_docker = eval_docker
-    }
-
+            eval_docker = eval_docker,
+            cli_utils_py = cli_utils_py,
+            clopper_pearson_py = clopper_pearson_py,
+            plot_bp_concordance_pcawg_pilot_py = plot_bp_concordance_pcawg_pilot_py,
+            plot_purity_series_hcc1143_py = plot_purity_series_hcc1143_py,
+            run_plot_reproducibility_py = run_plot_reproducibility_py,
+            plot_clinical_sensitivity_py = plot_clinical_sensitivity_py,
+            run_html_report_py = run_html_report_py
+       }
+       
     call ReproducibilityValidationPrep {
         input:
             called_segs_1 = cnvValidationPurity.combined_seg_cr_calls_file[index1],
@@ -230,25 +308,48 @@ workflow MultiCNVValidation {
             ref_fasta = ref_fasta,
             ref_fasta_dict = ref_fasta_dict,
             ref_fasta_fai = ref_fasta_fai,
-            gatk_docker = gatk_docker
+            gatk_docker = gatk_docker,
+            cli_utils_py = cli_utils_py,
+            clopper_pearson_py = clopper_pearson_py,
+            plot_bp_concordance_pcawg_pilot_py = plot_bp_concordance_pcawg_pilot_py,
+            plot_purity_series_hcc1143_py = plot_purity_series_hcc1143_py,
+            run_plot_reproducibility_py = run_plot_reproducibility_py,
+            plot_clinical_sensitivity_py = plot_clinical_sensitivity_py,
+            run_html_report_py = run_html_report_py
     }
-
     call ReproducibilityValidation {
         input:
             called_segs_1 = cnvValidationPurity.combined_seg_cr_calls_file[index1],
             called_segs_2 = cnvValidationPurity.combined_seg_cr_calls_file[index2],
-            reproducibility_targets = ReproducibilityValidationPrep.reproducibility_targets,
             group_id = group_id_final,
             targets_file = cnvValidationPurity.denoised_copy_ratios_tumor[index1],
+            reproducibility_targets = ReproducibilityValidationPrep.reproducibility_targets,
             gatk4_jar_override  = gatk4_jar_override_evaluation,
-            eval_docker = eval_docker
+            ref_fasta = ref_fasta,
+            ref_fasta_dict = ref_fasta_dict,
+            ref_fasta_fai = ref_fasta_fai,
+            eval_docker = eval_docker,
+            cli_utils_py = cli_utils_py,
+            clopper_pearson_py = clopper_pearson_py,
+            plot_bp_concordance_pcawg_pilot_py = plot_bp_concordance_pcawg_pilot_py,
+            plot_purity_series_hcc1143_py = plot_purity_series_hcc1143_py,
+            run_plot_reproducibility_py = run_plot_reproducibility_py,
+            plot_clinical_sensitivity_py = plot_clinical_sensitivity_py,
+            run_html_report_py = run_html_report_py
     }
 
     call ClinicalSensitivity {
         input:
             merged_seg_and_gt_files = ClinicalSensitivityPrep.clinical_sensitivity_seg_file,
             group_id = group_id_final,
-            eval_docker = eval_docker
+            eval_docker = eval_docker,
+            cli_utils_py = cli_utils_py,
+            clopper_pearson_py = clopper_pearson_py,
+            plot_bp_concordance_pcawg_pilot_py = plot_bp_concordance_pcawg_pilot_py,
+            plot_purity_series_hcc1143_py = plot_purity_series_hcc1143_py,
+            run_plot_reproducibility_py = run_plot_reproducibility_py,
+            plot_clinical_sensitivity_py = plot_clinical_sensitivity_py,
+            run_html_report_py = run_html_report_py
     }
 
     call CreateHtmlReport {
@@ -259,9 +360,15 @@ workflow MultiCNVValidation {
             bp_concordance_tar_gz = BpConcordanceValidation.final_bp_concordance_validation_outputs_tar_gz,
             reproducibility_tar_gz = ReproducibilityValidation.final_reproducibility_validation_tar_gz,
             purity_tar_gz = PurityValidation.final_purity_validation_tar_gz,
-            group_id = group_id_final
+            group_id = group_id_final,
+            cli_utils_py = cli_utils_py,
+            clopper_pearson_py = clopper_pearson_py,
+            plot_bp_concordance_pcawg_pilot_py = plot_bp_concordance_pcawg_pilot_py,
+            plot_purity_series_hcc1143_py = plot_purity_series_hcc1143_py,
+            run_plot_reproducibility_py = run_plot_reproducibility_py,
+            plot_clinical_sensitivity_py = plot_clinical_sensitivity_py,
+            run_html_report_py = run_html_report_py
     }
-
 }
 
 task CombineTracks {
@@ -281,7 +388,7 @@ task CombineTracks {
     echo "need to add --columns-of-interest POSSIBLE_GERMLINE when introducing germline tagging"
 
     echo "======= GERMLINE TAGGING"
-    java -jar ${default="/root/gatk.jar" gatk4_jar_override} TagGermlineEvents \
+    java -jar "/root/gatk.jar" TagGermlineEvents \
             --segments ${combined_seg} --called-matched-normal-seg-file ${matched_normal_called_seg} \
             -O ${output_name}.combined.germline_tagged.seg -R ${ref_fasta}
 
@@ -300,7 +407,7 @@ task CombineTracks {
     >>>
 
     runtime {
-        docker: "${gatk_docker}"
+        docker: "us.gcr.io/broad-gatk/gatk:4.0.7.0"
         memory: "1 GB"
         disks: "local-disk 100 HDD"
         preemptible: 2
@@ -319,13 +426,20 @@ task BpConcordanceValidation {
     Array[File] gt_seg_files
     String group_id
     String eval_docker
+    File cli_utils_py
+    File clopper_pearson_py
+    File plot_bp_concordance_pcawg_pilot_py
+    File plot_purity_series_hcc1143_py
+    File run_plot_reproducibility_py
+    File plot_clinical_sensitivity_py
+    File run_html_report_py
 
     command <<<
         set -e
         pushd .
         cd /root/
         # SUPER HACK:  We get the barcode from the ground truth filename
-        python /root/plot_bp_concordance_pcawg_pilot.py -I ${sep=" -I " combined_segs} \
+        python ${plot_bp_concordance_pcawg_pilot_py} -I ${sep=" -I " combined_segs} \
          -G ${sep=" -G " gt_seg_files} \
          -O ${group_id}/bp_concordance/
         tar zcvf ${group_id}_wgs_concordance.tar.gz ${group_id}/bp_concordance/
@@ -349,11 +463,18 @@ task PurityValidation {
     Array[File] combined_purity_series_segs
     String group_id
     String eval_docker
-
+    File cli_utils_py
+    File clopper_pearson_py
+    File plot_bp_concordance_pcawg_pilot_py
+    File plot_purity_series_hcc1143_py
+    File run_plot_reproducibility_py
+    File plot_clinical_sensitivity_py
+    File run_html_report_py
+	
     command <<<
         set -e
 
-        python /root/plot_purity_series_hcc1143.py -O ${group_id}/purity/  ${sep=" " combined_purity_series_segs}
+        python ${plot_purity_series_hcc1143_py} -O ${group_id}/purity/  ${sep=" " combined_purity_series_segs}
         echo "Doing tar..."
         tar zcvf ${group_id}_purity.tar.gz ${group_id}/purity/
     >>>
@@ -380,6 +501,13 @@ task ReproducibilityValidationPrep {
     File ref_fasta
     File ref_fasta_dict
     File ref_fasta_fai
+    File cli_utils_py
+    File clopper_pearson_py
+    File plot_bp_concordance_pcawg_pilot_py
+    File plot_purity_series_hcc1143_py
+    File run_plot_reproducibility_py
+    File plot_clinical_sensitivity_py
+    File run_html_report_py
 
     command <<<
         set -e
@@ -390,27 +518,27 @@ task ReproducibilityValidationPrep {
 
         java -Xmx4g -jar ${default="/root/gatk.jar" gatk4_jar_override} CombineSegmentBreakpoints \
             --segments ${called_segs_1} --segments ${called_segs_2}  \
-			--columns-of-interest CALL --columns-of-interest MEAN_LOG2_COPY_RATIO \
+			--columns-of-interest CALL --columns-of-interest LOG2_COPY_RATIO_POSTERIOR_50 \
             -O reproducibility.tsv.seg -R ${ref_fasta}
 
         java -Xmx4g -jar ${default="/root/gatk.jar" gatk4_jar_override} CombineSegmentBreakpoints \
             --segments reproducibility.tsv.seg --segments targets_file.seg  \
-			--columns-of-interest CALL_1 --columns-of-interest CALL_2 --columns-of-interest MEAN_LOG2_COPY_RATIO_1 \
-			--columns-of-interest MEAN_LOG2_COPY_RATIO_2 --columns-of-interest LOG2_COPY_RATIO \
+			--columns-of-interest CALL_1 --columns-of-interest CALL_2 --columns-of-interest LOG2_COPY_RATIO_POSTERIOR_50_1 --columns-of-interest LOG2_COPY_RATIO_POSTERIOR_50_2 --columns-of-interest LOG2_COPY_RATIO \
             -O reproducibility_targets_tmp.tsv.seg -R ${ref_fasta}
 
         egrep -v "^\@" reproducibility_targets_tmp.tsv.seg > ${group_id}_reproducibility_targets.seg
+        
     >>>
-
+    
     runtime {
         docker: "${gatk_docker}"
         memory: "4 GB"
         disks: "local-disk 100 HDD"
         preemptible: 2
     }
-
+    
     output {
-        File reproducibility_targets = "${group_id}_reproducibility_targets.seg"
+       File reproducibility_targets = "${group_id}_reproducibility_targets.seg"
     }
 }
 
@@ -422,18 +550,27 @@ task ReproducibilityValidation {
     String eval_docker
     File targets_file
     File? gatk4_jar_override
-
+    File ref_fasta
+    File ref_fasta_dict
+    File ref_fasta_fai
+    File cli_utils_py
+    File clopper_pearson_py
+    File plot_bp_concordance_pcawg_pilot_py
+    File plot_purity_series_hcc1143_py
+    File run_plot_reproducibility_py
+    File plot_clinical_sensitivity_py
+    File run_html_report_py
+    
     # This should be a optional, but cromwell 30 croaks.
     Float ploidy = 3.7
-
     String sample1_name = basename(called_segs_1)
     String sample2_name = basename(called_segs_2)
     Boolean is_cr = false
     command <<<
         set -e
-
+        
         echo "Plotting...."
-        python /root/run_plot_reproducibility.py \
+        python ${run_plot_reproducibility_py} \
             ${reproducibility_targets} \
             ${sample1_name} \
             ${sample2_name} \
@@ -443,7 +580,7 @@ task ReproducibilityValidation {
 
         tar zcvf ${group_id}_reproducibility.tar.gz ${group_id}/reproducibility/
     >>>
-
+	
     runtime {
         docker: "${eval_docker}"
         memory: "4 GB"
@@ -460,11 +597,18 @@ task ClinicalSensitivity {
     Array[File] merged_seg_and_gt_files
     String group_id
     String eval_docker
+    File cli_utils_py
+    File clopper_pearson_py
+    File plot_bp_concordance_pcawg_pilot_py
+    File plot_purity_series_hcc1143_py
+    File run_plot_reproducibility_py
+    File plot_clinical_sensitivity_py
+    File run_html_report_py
 
     command <<<
         set -e
         mkdir -p ${group_id}
-        python /root/plot_clinical_sensitivity.py -I ${sep=" -I " merged_seg_and_gt_files} \
+        python ${plot_clinical_sensitivity_py} -I ${sep=" -I " merged_seg_and_gt_files} \
             -O ${group_id}/clinical/
 
         tar zcvf ${group_id}_clinical_sensitivity.tar.gz ${group_id}/clinical/
@@ -528,6 +672,13 @@ task CreateHtmlReport {
     File reproducibility_tar_gz
     File purity_tar_gz
     String group_id
+    File cli_utils_py
+    File clopper_pearson_py
+    File plot_bp_concordance_pcawg_pilot_py
+    File plot_purity_series_hcc1143_py
+    File run_plot_reproducibility_py
+    File plot_clinical_sensitivity_py
+    File run_html_report_py
 
     command <<<
         set -e
@@ -542,7 +693,7 @@ task CreateHtmlReport {
 
         cd /root/report/
 
-        python /root/run_html_report.py --eval-docker ${eval_docker} --gatk-docker ${gatk_docker} \
+        python ${run_html_report_py} --eval-docker ${eval_docker} --gatk-docker ${gatk_docker} \
         --purity-dir ${group_id}/purity/ \
         --clinical-dir ${group_id}/clinical/ \
         --reproducibility-dir ${group_id}/reproducibility/ \
